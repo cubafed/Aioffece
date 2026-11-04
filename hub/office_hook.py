@@ -54,7 +54,8 @@ def main():
         p = from_antigravity(p, sys.argv[2] if len(sys.argv) > 2 else '')
     cwd = p.get('cwd') or ('' if src == 'antigravity' else os.getcwd())
     p['cwd'] = cwd
-    p['project'] = project_of(cwd) if cwd else 'Antigravity'
+    root = os.environ.get('CLAUDE_PROJECT_DIR') if src == 'claude' else None   # where the session started, not the current cd
+    p['project'] = project_of(root or cwd) if (root or cwd) else 'Antigravity'
     p['host'] = os.uname().nodename.split('.')[0]
     for big in ('tool_response', 'transcript_path', 'permission_suggestions'):
         p.pop(big, None)

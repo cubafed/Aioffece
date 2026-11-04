@@ -12,6 +12,7 @@ Python 3.9 stdlib only (the Mac's /usr/bin/python3).
 import json
 import os
 import queue
+import re
 import secrets
 import threading
 import time
@@ -48,7 +49,7 @@ dirty = threading.Event()
 
 
 def short(s, n=80):
-    s = ' '.join(str(s or '').split())
+    s = ' '.join(re.sub(r'</?[a-zA-Z][\w-]*(?:\s[^>]*)?>', ' ', str(s or '')).split())   # drop <pasted_content …> style tags
     return s if len(s) <= n else s[:n - 1] + '…'
 
 
