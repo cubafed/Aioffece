@@ -728,7 +728,7 @@ function paintTags() { allLevels().forEach(L => { const f = L.f, busy = f.agents
 
 /* ================= state changes ================= */
 const camGoal = { target: HOME.target.clone(), zoom: 1, until: 0 };
-function openFloor(i) { S.floor = i; S.open = true; S.sel = null; const L = FLOORS[i].L;
+function openFloor(i) { if (!FLOORS[i]) return; S.floor = i; S.open = true; S.sel = null; const L = FLOORS[i].L;
   camGoal.target.set((L.lvl < 0 ? AX : BX) + 1, L.base + 0.8, BZ + 1); camGoal.zoom = innerWidth < 760 ? 1.5 : 1.85; camGoal.until = performance.now() + 1200; renderUI(); }
 function closeFloor() { S.open = false; S.sel = null; camGoal.target.copy(HOME.target); camGoal.zoom = 1; camGoal.until = performance.now() + 1200; renderUI(); }
 function log(who, what, st) { const l = [nowHM(), who, what, st || 'working']; LOG.forEach(x => x.fresh = false); l.fresh = true; LOG.unshift(l); LOG.length = Math.min(LOG.length, 40); }
@@ -890,7 +890,7 @@ canvas.addEventListener('pointerup', e => {
   const hits = ray.intersectObjects([...bodies, ...pickables.filter(p => p.parent.visible)], false);
   if (!hits.length) return;
   const o = hits[0].object;
-  if (o.userData.agentId) select(o.userData.agentId); else if (o.userData.floor) openFloor(FLOORS.indexOf(o.userData.floor));
+  if (o.userData.agentId) select(o.userData.agentId); else if (o.userData.floor) { const f0 = o.userData.floor; openFloor(FLOORS.findIndex(x => x.name === f0.name && !!x.annex === !!f0.annex)); }   // floors are rebuilt on updates: match by name
 });
 
 /* ================= look ================= */
