@@ -1080,7 +1080,7 @@ function agentRow(a) {
   const acts = [];
   if (a.status === 'waiting') acts.push(a.approval ? `<button class="btn" data-approve="${a.id}">Одобрить</button><button class="btn ghost" data-deny="${a.id}">Отклонить</button>` : '<span class="muted" style="font-size:12px">ответь в терминале или Vibe Island</span>');
   if (a.managed && a.running) acts.push(`<button class="btn ghost" data-stop="${a.id}">Стоп</button>`);
-  if (a.managed) acts.push(`<form data-pultsend="${a.id}"><input name="t" data-pin="${a.id}" placeholder="Ответить ${esc(a.name)}…" autocomplete="off"><button class="btn ghost" type="submit">→</button></form>`);
+  if (a.managed || a.forkable) acts.push(`<form data-pultsend="${a.id}"><input name="t" data-pin="${a.id}" placeholder="${a.managed ? 'Ответить ' + esc(a.name) + '…' : a.kind === 'codex' ? 'Ответить — продолжу этот тред Codex…' : 'Ответить — продолжу копию сессии в офисе…'}" autocomplete="off"><button class="btn ghost" type="submit">→</button></form>`);
   acts.push(`<button class="btn ghost" data-chat="${a.id}">Чат</button>`);
   return `<div class="ar ${a.status}"><div class="av" style="background:${k.color}" aria-hidden="true">${esc((k.label || a.kind)[0])}</div>
     <div class="nm">${esc(a.name)} <small>${esc(k.label || a.kind)}${a.where ? ' · ' + esc(a.where) : ''}</small></div>
@@ -1118,7 +1118,8 @@ function renderPult() {
 document.addEventListener('submit', (e) => {
   const f = e.target;
   if (f.dataset.pultsend) { e.preventDefault(); const inp = f.querySelector('input'), text = inp.value.trim(); if (!text) return;
-    inp.value = ''; inp.blur(); api('/api/send', { id: f.dataset.pultsend, text }).then(() => renderUI()).catch(toastErr); }
+    inp.value = ''; inp.blur(); const src = byId(f.dataset.pultsend);
+    api('/api/send', { id: f.dataset.pultsend, text }).then(j => { if (src && !src.managed) log('Офис', 'продолжаю ' + src.name + ' в офисе', 'working'); renderUI(); }).catch(toastErr); }
   else if (f.dataset.goalf) { e.preventDefault(); const fl = FLOORS[+f.dataset.goalf], inp = f.querySelector('input'), text = inp.value.trim(); if (!fl || !text) return;
     const sel = f.querySelector('select'), kind = sel ? sel.value : (f.dataset.k || 'claude');
     if (text.split(/\s+/).length < 2) { toastErr(new Error('Опиши цель хотя бы парой слов')); return; }

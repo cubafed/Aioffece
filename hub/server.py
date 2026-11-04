@@ -387,6 +387,39 @@ def host_kinds(host):
     return [k for k in kinds if host + ':' + k not in BROKEN]
 
 
+def continuable(a):
+    """'' when a terminal session can go on inside the office, otherwise the reason it cannot."""
+    if a.get('managed'):
+        return ''
+    if a['src'] not in ('claude', 'codex') or not a.get('session') or a.get('chatOnly'):
+        return 'эту сессию можно продолжить только там, где она идёт'
+    host = a.get('host') or LOCAL_HOST
+    if a['src'] not in host_kinds(host):
+        return '%s на %s сейчас недоступен офису' % (a['src'], host)
+    return ''
+
+
+def continue_in_office(a, text):
+    """Answer a terminal session from the office. Claude forks the session (the terminal one stays untouched);
+    Codex has no fork, so it resumes the same thread, and only while the terminal is idle."""
+    why = continuable(a)
+    if why:
+        raise RuntimeError(why)
+    b = agents.get(a.get('cont') or '')
+    if b and b.get('managed'):
+        send_to(b, text)
+        return b
+    if a['src'] == 'codex' and a['status'] == 'working':
+        raise RuntimeError('Codex сейчас работает в своём окне: дождись, пока он закончит')
+    host = a.get('host') or LOCAL_HOST
+    b = hire(a['src'], a['cwd'] or (projects.get(a['project']) or {}).get('path'), '', name=a['name'] + ' · офис',
+             project=a['project'], host=host)
+    b['managed'].update(sid=a['session'], fork=a['src'] == 'claude')
+    a['cont'] = b['id']
+    send_to(b, text)
+    return b
+
+
 def start_run(a, text):
     m = a['managed']
     sid, new_sid, fork, system = m.get('sid'), None, bool(m.get('fork')), m.get('system') or ''
@@ -1019,7 +1052,7 @@ def snapshot():
                         'approval': ap['id'] if ap and ap['live'] and not ap['decision'] else None,
                         'where': (a['host'] + ' · ' if a['host'] else '') + a['cwd'].replace(os.path.expanduser('~'), '~'),
                         'managed': bool(a.get('managed')), 'running': a['id'] in RUNS, 'chatLen': len(a.get('chat') or []),
-                        'forkable': a['src'] == 'claude' and not a.get('managed') and a.get('host') == LOCAL_HOST,
+                        'forkable': continuable(a) == '',
                         'xp': a['tasks'] * 10 + a['steps'], 'badges': badges(a), 'errors': a.get('errors', 0),
                         'chatOnly': bool(a.get('chatOnly')), 'last': a['last'], 'reply': last_bot(a), 'scope': a.get('scope', ''), 'look': a.get('look') or {}})
         pub.sort(key=lambda x: x['name'])
@@ -1463,18 +1496,11 @@ def _office_run(self, path, body):
                 return self._json(200, {'ok': bool(run)})
             if not text:
                 return self._json(400, {'error': 'пустое сообщение'})
-            if path == '/api/send':
-                if not a.get('managed'):
-                    return self._json(400, {'error': 'эта сессия идёт в терминале, писать можно только туда'})
+            if a.get('managed'):
                 send_to(a, text)
-                return self._json(200, {'ok': True})
-            if a['src'] != 'claude' or a.get('managed') or a.get('host') != LOCAL_HOST:
-                return self._json(400, {'error': 'продолжить в офисе можно только сессию Claude на этом Маке'})
-            path_ = (projects.get(a['project']) or {}).get('path') or a['cwd']
-            b = hire('claude', path_, '', name=a['name'] + ' · офис')
-            b['managed'].update(sid=a['session'], fork=True)
-            send_to(b, text)
-            return self._json(200, {'id': b['id']})
+                return self._json(200, {'ok': True, 'id': a['id']})
+            b = continue_in_office(a, text)
+            return self._json(200, {'ok': True, 'id': b['id']})
     except (RuntimeError, OSError) as e:
         return self._json(500, {'error': str(e)})
 
