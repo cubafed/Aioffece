@@ -40,10 +40,15 @@ ssh mac 'python3 ~/ai-office/deploy/mac/hooks.py install'   # хуки Claude Co
 ssh mac 'python3 ~/ai-office/deploy/mac/hooks.py uninstall' # откат хуков
 ```
 
+Сессии Claude Code с Linux-сервера (туннель ssh до хаба на Маке + хук):
+
+```sh
+sh ~/ai-office/deploy/linux/install.sh
+```
+
 Логи хаба: `~/Library/Logs/ai-office-hub.log`. Перезапуск: `launchctl kickstart -k gui/$(id -u)/ru.ai-office.hub`.
 
 ## Дальше
-- Сессии с Linux-сервера: хук + `ssh -L 4747` до Мака.
 - Задачи из офиса: запуск `claude -p` в папке проекта, его разрешения приходят в офис.
 - Grok и Gemini через обёртки над API.
 - Счётчики лимитов и иконка приложения.
