@@ -317,7 +317,7 @@ def start_run(a, text):
     proc = subprocess.Popen(cmd, cwd=m['path'], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, env=env)
     RUNS[a['id']] = {'proc': proc, 'queue': [], 'stopped': False}
-    a['prompt'] = short(text, 110)
+    a['prompt'] = short(re.sub(r'^\[([^\]]+?) пишет тебе в ИИ-Офисе\]:\s*', r'\1: ', text), 110)   # «Мастер: …» instead of the raw envelope
     a['tasks'] += 1
     set_status(a, 'working', a['prompt'])
     add_log(a['name'], 'новая задача: ' + short(text, 70), 'working')
