@@ -326,6 +326,10 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
 (() => {
 'use strict';
 const $ = (id) => document.getElementById(id);
+// page errors go to the hub log (the app's web view has no visible console)
+const reportErr = (msg) => { try { fetch('/api/clienterror', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Office': '1' }, body: JSON.stringify({ msg: String(msg).slice(0, 3000) }) }).catch(() => {}); } catch (e) {} };
+addEventListener('error', (e) => reportErr((e.message || '') + ' @' + e.filename + ':' + e.lineno + ':' + e.colno + ' ' + ((e.error && e.error.stack) || '')));
+addEventListener('unhandledrejection', (e) => reportErr('promise: ' + ((e.reason && (e.reason.stack || e.reason.message)) || e.reason)));
 const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const nowHM = () => { const d = new Date(); return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); };
@@ -908,6 +912,10 @@ addEventListener('resize', resize);
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const v3 = new THREE.Vector3();
 function frame(t) {
+  try { frameBody(t); } catch (e) { if (!S.frameErr) { S.frameErr = true; reportErr('frame: ' + (e.stack || e)); } }
+  requestAnimationFrame(frame);
+}
+function frameBody(t) {
   // camera easing towards goal after a floor change
   if (t < camGoal.until) { const k = reduce ? 1 : 0.09; controls.target.lerp(camGoal.target, k); camera.zoom += (camGoal.zoom - camera.zoom) * k; camera.updateProjectionMatrix(); }
   controls.update();
@@ -953,7 +961,7 @@ function frame(t) {
     const cz = PZ + 24 - ((t / 25) % 1000) / 1000 * 26; movingCar.position.z = cz;
     spray.scale.setScalar(1 + Math.sin(t / 200) * 0.08);
   }
-  renderer.render(scene, camera); requestAnimationFrame(frame);
+  renderer.render(scene, camera);
 }
 
 /* ================= simulation (demo) ================= */
@@ -982,12 +990,14 @@ function detailActs(a) {
 const chatHtml = (t) => esc(t).replace(/`([^`\n]+)`/g, '<code>$1</code>');
 function toastErr(e) { log('Офис', e.message || String(e), 'error'); renderUI(); }
 function loadChat(id) {
-  return api('/api/chat?id=' + encodeURIComponent(id)).then(j => { if (S.chat !== id) return; S.chatMsgs = j.chat; S.chatLen = j.chat.length; renderChat(true); }).catch(toastErr);
+  if (S.chatLoading) return;
+  S.chatLoading = true;
+  return api('/api/chat?id=' + encodeURIComponent(id)).then(j => { S.chatLoading = false; if (S.chat !== id) return; S.chatMsgs = j.chat; S.chatLen = j.chat.length; renderChat(true); }).catch(e => { S.chatLoading = false; toastErr(e); });
 }
 function renderChatLive(soft) {
   const a = S.chat && byId(S.chat); document.body.classList.toggle('chat-open', !!a);
   if (!a) { $('chatWrap').innerHTML = ''; $('right').style.visibility = ''; return; }
-  if (a.chatLen !== S.chatLen && S.chatMsgs) loadChat(a.id);
+  if (S.chatMsgs && a.chatLen > S.chatLen) loadChat(a.id);   // only when the hub has newer messages, never in a loop
   const msgs = S.chatMsgs;
   const body = msgs === null ? '<div class="msg sys">Загружаю…</div>' : !msgs.length ? `<div class="msg sys">${a.managed ? 'Напиши первую задачу' : 'История появится после первого ответа агента'}</div>`
     : msgs.map(m => `<div class="msg ${m.who === 'me' ? 'me' : m.who}">${m.who === 'user' ? '<span class="lbl">в терминале</span>' : ''}${chatHtml(m.text)}<time>${m.t || ''}</time></div>`).join('');
@@ -1009,26 +1019,35 @@ function renderChatLive(soft) {
 }
 const KIND_RU = { claude: 'Клод · Claude Code', codex: 'Кодекс · Codex', antigravity: 'Джемини · Antigravity' };
 function openHire(task) {
-  S.hireTask = task; S.hireKind = S.hireKind || (S.hub.kinds || [])[0]; S.hireDirs = S.hireDirs || null; renderHire();
+  S.hireTask = task; S.hireDir = null; S.hireDirs = S.hireDirs || null; renderHire();
   if (!S.hireDirs) api('/api/dirs').then(j => { S.hireDirs = j.dirs; renderHire(); }).catch(toastErr);
 }
 function renderHire() {
-  const cur = S.open && FLOORS[S.floor] ? (S.hub.projects.find(p => p.name === FLOORS[S.floor].name) || {}).path : '';
-  const known = S.hub.projects.filter(p => p.path).map(p => ({ name: p.name, path: p.path }));
-  const dirs = [...known, ...(S.hireDirs || []).filter(d => !known.some(k => k.path === d.path))];
-  const prevTask = $('hireTask') ? $('hireTask').value : S.hireTask, prevDir = $('hireDir') ? $('hireDir').value : (cur || (dirs[0] || {}).path || '');
+  const local = S.hub.localHost, hosts = S.hub.hosts || {};
+  const hostName = (h) => h === local ? 'Мак' : 'сервер ' + h;
+  const known = S.hub.projects.filter(p => p.path && hosts[p.host]).map(p => ({ name: p.name, path: p.path, host: p.host }));
+  const dirs = [...known, ...(S.hireDirs || []).filter(d => hosts[d.host] && !known.some(k => k.path === d.path && k.host === d.host))];
+  const cur = S.open && FLOORS[S.floor] ? known.find(k => k.name === FLOORS[S.floor].name) : null;
+  if (!S.hireDir) S.hireDir = cur ? cur.host + '|' + cur.path : dirs[0] ? dirs[0].host + '|' + dirs[0].path : '|';
+  const otherHost = S.hireOtherHost || local;
+  const host = S.hireDir === 'other' ? otherHost : S.hireDir.split('|')[0];
+  const kinds = hosts[host] || [];
+  if (!kinds.includes(S.hireKind)) S.hireKind = kinds[0];
+  const prevTask = $('hireTask') ? $('hireTask').value : S.hireTask, prevOther = $('hireOther') ? $('hireOther').value : '';
   $('hireWrap').innerHTML = `<div class="scrim" data-closehire="1"><form class="card modal hire" id="hireForm" role="dialog" aria-modal="true" aria-labelledby="hTitle"><h2 id="hTitle">Нанять агента</h2>
     <p class="muted" style="margin:0">Офис сам запустит агента в папке проекта. Правки файлов он делает сам, команды в терминале просит разрешить здесь.</p>
-    <div class="opts" role="group" aria-label="Агент">${(S.hub.kinds || []).map(k => `<button type="button" class="btn ghost" data-kind="${k}" aria-pressed="${k === S.hireKind}">${KIND_RU[k] || k}</button>`).join('') || '<span class="muted">На Маке не нашлось ни одного агента</span>'}</div>
-    <label for="hireDir">Проект</label><select id="hireDir">${dirs.map(d => `<option value="${esc(d.path)}" ${d.path === prevDir ? 'selected' : ''}>${esc(d.name)} — ${esc(d.path.replace(/^\/Users\/[^/]+/, '~'))}</option>`).join('')}<option value="">Другая папка…</option></select>
-    <input id="hireOther" placeholder="~/Projects/моя-папка" ${dirs.length ? 'hidden' : ''}>
+    <label for="hireDir">Проект</label><select id="hireDir">${dirs.map(d => { const v = d.host + '|' + d.path; return `<option value="${esc(v)}" ${v === S.hireDir ? 'selected' : ''}>${esc(d.name)} — ${hostName(d.host)}, ${esc(d.path.replace(/^\/(Users|home)\/[^/]+/, '~'))}</option>`; }).join('')}<option value="other" ${S.hireDir === 'other' ? 'selected' : ''}>Другая папка…</option></select>
+    ${S.hireDir === 'other' ? `<div class="opts" role="group" aria-label="Где">${Object.keys(hosts).map(h => `<button type="button" class="btn ghost" data-hirehost="${esc(h)}" aria-pressed="${h === otherHost}">${esc(hostName(h))}</button>`).join('')}</div><input id="hireOther" placeholder="${otherHost === local ? '~/Projects/моя-папка' : '/home/coder/моя-папка'}" value="${esc(prevOther)}">` : ''}
+    <label>Агент</label><div class="opts" role="group" aria-label="Агент">${kinds.map(k => `<button type="button" class="btn ghost" data-kind="${k}" aria-pressed="${k === S.hireKind}">${KIND_RU[k] || k}</button>`).join('') || `<span class="muted">На ${esc(hostName(host))} сейчас нет доступных агентов</span>`}</div>
+    ${S.hub.broken && S.hub.broken.claude && host === local ? '<p class="muted" style="margin:-6px 0 6px;font-size:12px">Claude на Маке не залогинен. Клода можно нанять на сервере.</p>' : ''}
     <label for="hireTask">Первая задача <span class="muted" style="font-weight:400">(можно пусто)</span></label><textarea id="hireTask" placeholder="Например: добавь напоминание за 10 минут до пары">${esc(prevTask || '')}</textarea>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button type="button" class="btn ghost" data-closehire="1">Отмена</button><button class="btn" type="submit">Нанять</button></div></form></div>`;
-  $('hireDir').onchange = () => { $('hireOther').hidden = !!$('hireDir').value; };
+  $('hireDir').onchange = () => { S.hireDir = $('hireDir').value; renderHire(); };
+  $('hireWrap').querySelectorAll('[data-hirehost]').forEach(b => b.onclick = () => { S.hireOtherHost = b.dataset.hirehost; renderHire(); });
   $('hireForm').onsubmit = (e) => { e.preventDefault();
-    const path = $('hireDir').value || $('hireOther').value.trim();
+    const path = S.hireDir === 'other' ? ($('hireOther').value || '').trim() : S.hireDir.split('|').slice(1).join('|');
     if (!S.hireKind || !path) return toastErr(new Error('Выбери агента и папку'));
-    api('/api/hire', { kind: S.hireKind, path, task: $('hireTask').value.trim() }).then(j => { $('hireWrap').innerHTML = ''; S.sel = null; openChat(j.id); }).catch(toastErr); };
+    api('/api/hire', { kind: S.hireKind, path, host, task: $('hireTask').value.trim() }).then(j => { $('hireWrap').innerHTML = ''; S.sel = null; S.hireDir = null; openChat(j.id); }).catch(toastErr); };
 }
 function liveCmd(v) {
   const a = S.sel && byId(S.sel);
@@ -1057,7 +1076,9 @@ function boardHtml(f) {
 function openMission(mode) {
   const f = FLOORS[S.floor]; if (!f) return;
   const title = { goal: 'Цель для этажа ' + f.name, task: 'Задача на доску', room: 'Сообщение команде' }[mode];
-  const kinds = (S.hub.kinds || []).filter(k => k === 'claude' || k === 'codex');
+  const kinds = [...new Set(Object.values(S.hub.hosts || {}).flat())].filter(k => k === 'claude' || k === 'codex');
+  const ph = (S.hub.projects.find(p => p.name === f.name) || {}).host; const hk = (S.hub.hosts || {})[ph] || [];
+  const kinds2 = kinds.filter(k => hk.includes(k)); if (kinds2.length) kinds.splice(0, kinds.length, ...kinds2);
   S.missionKind = S.missionKind && kinds.includes(S.missionKind) ? S.missionKind : kinds[0];
   $('hireWrap').innerHTML = `<div class="scrim" data-closehire="1"><form class="card modal hire" id="mForm" role="dialog" aria-modal="true" aria-labelledby="mTitle"><h2 id="mTitle">${esc(title)}</h2>
     ${mode === 'goal' ? `<p class="muted" style="margin:0">Диспетчер разобьёт цель на задачи и наймёт до трёх исполнителей. Команды в терминале и слияние веток будут просить разрешения здесь.</p><label>Диспетчер</label><div class="opts" role="group" aria-label="Диспетчер">${kinds.map(k => `<button type="button" class="btn ghost" data-mkind="${k}" aria-pressed="${k === S.missionKind}">${KIND_RU[k]}</button>`).join('')}</div>` : ''}

@@ -59,6 +59,8 @@ clients = []      # one queue per open SSE stream
 ALIAS = {}        # "src:session" of an office-run CLI session -> its office agent id
 RUNS = {}         # office agent id -> {proc, queue, stopped}
 BROKEN = {}       # kind -> why the last run could not start (e.g. not logged in on this Mac)
+REMOTE = {}       # host -> {last, kinds, dirs, jobs: Queue} — runners on other machines (hub/runner.py)
+RJOBS = {}        # job id -> RemoteProc
 boards = {}       # project -> {goal, status, report, lead, tasks, room, seq, wakes}
 MAX_WAKES = 40    # agents waking each other per mission before the office waits for a human
 dirty = threading.Event()
@@ -200,8 +202,8 @@ def handle_hook(src, p):
         a['last'] = now
         a['events'] += 1
         ensure_project(a['project'])
-        if p.get('root') and p.get('host') == LOCAL_HOST:
-            projects[a['project']]['path'] = p['root']
+        if p.get('root') and p.get('host'):
+            set_place(a['project'], p['host'], p['root'])
         tool = p.get('tool_name') or ''
         if ev in ('PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'UserPromptSubmit', 'Stop', 'SessionStart') and a['approval']:
             close_approval(a, 'elsewhere')   # the prompt was answered in the terminal / Vibe Island
@@ -298,24 +300,73 @@ def link_session(a, sid):
         close_approval(dup, 'gone')
 
 
+class RemoteProc:
+    """A run on another machine's runner (hub/runner.py). Looks like a Popen to pump()."""
+
+    def __init__(self, host, agent):
+        self.id, self.host, self.agent = uuid.uuid4().hex, host, agent
+        self.q, self.rc, self.done = queue.Queue(), None, threading.Event()
+        self.stdout = iter(self.q.get, None)
+
+    def feed(self, lines):
+        for line in lines:
+            self.q.put((str(line).rstrip('\n') + '\n').encode('utf-8'))
+
+    def finish(self, rc):
+        if not self.done.is_set():
+            self.rc = rc
+            self.done.set()
+            self.q.put(None)
+
+    def poll(self):
+        return self.rc
+
+    def wait(self):
+        self.done.wait()
+        return self.rc
+
+    def terminate(self):
+        rn = REMOTE.get(self.host)
+        if rn:
+            rn['jobs'].put({'stop': self.id})
+
+
+def runner_online(host):
+    rn = REMOTE.get(host)
+    return rn if rn and time.time() - rn.get('last', 0) < 60 else None
+
+
+def host_kinds(host):
+    if host == LOCAL_HOST:
+        return [k for k in KINDS if runners.binary(k) and k not in BROKEN]
+    rn = runner_online(host)
+    return list(rn['kinds']) if rn else []
+
+
 def start_run(a, text):
     m = a['managed']
-    sid = m.get('sid')
+    sid, new_sid, fork, system = m.get('sid'), None, bool(m.get('fork')), m.get('system') or ''
     if a['src'] == 'claude' and not sid:
         new_sid = str(uuid.uuid4())
-        cmd = runners.command('claude', text, None, new_sid)
         link_session(a, new_sid)        # known before start, so its hooks never create a duplicate
+    host = m.get('host') or LOCAL_HOST
+    if host != LOCAL_HOST:
+        rn = runner_online(host)
+        if not rn:
+            raise RuntimeError('исполнитель на %s не на связи' % host)
+        proc = RemoteProc(host, a['id'])
+        RJOBS[proc.id] = proc
+        rn['jobs'].put({'id': proc.id, 'agent': a['id'], 'kind': a['src'], 'text': text, 'sid': None if new_sid else sid,
+                        'new_sid': new_sid, 'fork': fork, 'system': system, 'cwd': m['path'], 'worktree': m.pop('worktree_of', None)})
     else:
-        cmd = runners.command(a['src'], text, sid, fork=bool(m.get('fork')), system=m.get('system') or '')
-    if a['src'] == 'claude' and not sid and m.get('system'):
-        cmd += ['--append-system-prompt', m['system']]
-    env = dict(os.environ, OFFICE_AGENT_ID=a['id'], PATH='/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:' + os.path.expanduser('~/.local/bin'))
-    if settings.get('agentProxy'):        # e.g. the VPN's local proxy, for CLIs that ignore macOS VPN routing
-        for k in ('HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY', 'https_proxy', 'http_proxy', 'all_proxy'):
-            env[k] = settings['agentProxy']
-        env['NO_PROXY'] = env['no_proxy'] = '127.0.0.1,localhost'
-    proc = subprocess.Popen(cmd, cwd=m['path'], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT, env=env)
+        cmd = runners.command(a['src'], text, None if new_sid else sid, new_sid, fork=fork, system=system)
+        env = dict(os.environ, OFFICE_AGENT_ID=a['id'], PATH='/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:' + os.path.expanduser('~/.local/bin'))
+        if settings.get('agentProxy'):        # e.g. the VPN's local proxy, for CLIs that ignore macOS VPN routing
+            for k in ('HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY', 'https_proxy', 'http_proxy', 'all_proxy'):
+                env[k] = settings['agentProxy']
+            env['NO_PROXY'] = env['no_proxy'] = '127.0.0.1,localhost'
+        proc = subprocess.Popen(cmd, cwd=m['path'], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, env=env)
     RUNS[a['id']] = {'proc': proc, 'queue': [], 'stopped': False}
     a['prompt'] = short(re.sub(r'^\[([^\]]+?) пишет тебе в ИИ-Офисе\]:\s*', r'\1: ', text), 110)   # «Мастер: …» instead of the raw envelope
     a['tasks'] += 1
@@ -402,28 +453,21 @@ def send_to(a, text):
     mark_dirty()
 
 
-def make_worktree(root, key):
-    """A separate checkout on its own branch, so agents of one project never edit the same files."""
-    git = lambda *a: subprocess.run(['git', '-C', root, *a], capture_output=True, text=True, timeout=30)
-    if not os.path.isdir(os.path.join(root, '.git')) or git('rev-parse', '--verify', 'HEAD').returncode:
-        return root, None
-    branch = 'office/' + key.split(':')[-1][:8]
-    wt = os.path.join(os.path.dirname(root), '.office-worktrees', os.path.basename(root), key.split(':')[-1][:8])
-    r = git('worktree', 'add', '-b', branch, wt)
-    return (wt, branch) if r.returncode == 0 else (root, None)
-
-
-def hire(kind, path, task, name=None, project=None, system='', mission=None, worktree=False):
-    proj = project or project_of(path)
+def hire(kind, path, task, name=None, project=None, system='', mission=None, worktree=False, host=None):
+    host = host or LOCAL_HOST
+    local = host == LOCAL_HOST
+    proj = project or (project_of(path) if local else os.path.basename(path.rstrip('/')))
     key = 'office:' + uuid.uuid4().hex[:12]
-    work, branch = make_worktree(root_of(path), key) if worktree else (path, None)
-    a = new_agent(key, kind, key, {'project': proj, 'cwd': work, 'host': 'офис'}, name)
-    a['managed'] = {'path': work, 'system': system, 'branch': branch}
+    work, branch = runners.make_worktree(root_of(path), key) if (worktree and local) else (path, None)
+    a = new_agent(key, kind, key, {'project': proj, 'cwd': work, 'host': host}, name)
+    a['managed'] = {'path': work, 'system': system, 'branch': branch, 'host': host}
+    if worktree and not local:
+        a['managed']['worktree_of'] = path     # the remote runner makes the checkout before the first run
     if mission:
         a['mission'] = mission
     a['task'] = 'Ждёт задачу'
     if not project:
-        projects[proj]['path'] = root_of(path)
+        set_place(proj, host, root_of(path) if local else path)
     if task:
         send_to(a, task)
     mark_dirty()
@@ -554,20 +598,19 @@ def mcp_call(body):
         return '\n'.join('%s %s: %s' % (m['t'], m['from'], m['text']) for m in mine) or 'Новых сообщений нет', False
     if tool == 'office_hire':
         kind = str(args.get('kind') or 'claude').lower()
-        if kind not in ('claude', 'codex') or not runners.binary(kind):
-            return 'kind должен быть claude или codex (и стоять на Маке)', True
-        if kind in BROKEN:
-            other = 'codex' if kind == 'claude' else 'claude'
-            return '%s сейчас недоступен: %s. Найми kind="%s".' % (kind, BROKEN[kind], other), True
+        host, path = place_of(proj)
+        if not path:
+            return 'Не знаю, где лежит проект %s' % proj, True
+        if kind not in ('claude', 'codex') or kind not in host_kinds(host):
+            others = [k for k in host_kinds(host) if k in ('claude', 'codex')]
+            return '%s здесь недоступен%s.%s' % (kind, (': ' + BROKEN[kind]) if kind in BROKEN and host == LOCAL_HOST else '',
+                                                (' Найми kind="%s".' % others[0]) if others else ''), True
         busy = sum(1 for x in agents.values() if x['project'] == proj and x.get('mission') and x['mission'].get('role') == 'worker')
         if busy >= 4:
             return 'На этаже уже 4 исполнителя: дай задачу им или отпусти кого-то', True
         lead = b['lead'] if b['lead'] in agents else a['id']
-        path = (projects.get(proj) or {}).get('path')
-        if not path:
-            return 'Не знаю папку проекта %s' % proj, True
         nm = short(args.get('name'), 40) or '%s·%s %d' % (NAMES[kind], proj, busy + 1)
-        w = hire(kind, path, '', name=nm, project=proj, mission={'role': 'worker', 'lead': lead}, worktree=True)
+        w = hire(kind, path, '', name=nm, project=proj, mission={'role': 'worker', 'lead': lead}, worktree=True, host=host)
         w['managed']['system'] = WORKER_PROMPT.format(name=nm, proj=proj, lead=agents[lead]['name'],
                                                       branch=(' (ветка %s)' % w['managed']['branch']) if w['managed'].get('branch') else '')
         send_to(w, str(args.get('task') or 'Посмотри доску office_board и возьми задачу.'))
@@ -582,18 +625,18 @@ def mcp_call(body):
 
 
 def start_mission(proj, goal, kind='claude'):
-    path = (projects.get(proj) or {}).get('path')
-    if not path or not os.path.isdir(path):
-        raise RuntimeError('у этажа %s нет папки на этом Маке' % proj)
+    host, path = place_of(proj)
+    if not path:
+        raise RuntimeError('у этажа %s нет папки ни на Маке, ни на подключённом сервере' % proj)
     b = board_of(proj)
     b.update(goal=short(goal, 1000), status='active', report='', wakes=0)
     lead = agents.get(b['lead'] or '')
     if lead and lead.get('managed'):
         deliver(lead, 'Новая цель команды: ' + goal, 'Ты')
         return lead
-    if kind not in ('claude', 'codex') or not runners.binary(kind):
-        raise RuntimeError('Диспетчером может быть claude или codex')
-    lead = hire(kind, path, '', name='Диспетчер·' + proj, project=proj, mission={'role': 'lead'},
+    if kind not in ('claude', 'codex') or kind not in host_kinds(host):
+        raise RuntimeError('%s недоступен там, где лежит проект (%s)' % (kind, host))
+    lead = hire(kind, path, '', name='Диспетчер·' + proj, project=proj, mission={'role': 'lead'}, host=host,
                 system=LEAD_PROMPT.format(proj=proj, goal=goal))
     b['lead'] = lead['id']
     send_to(lead, 'Цель: %s\nНачни: разбей на задачи и найми исполнителей.' % goal)
@@ -601,19 +644,23 @@ def start_mission(proj, goal, kind='claude'):
     return lead
 
 
-def scan_dirs():
-    home, out, seen = os.path.expanduser('~'), [], set()
-    for d in [home] + [os.path.join(home, x) for x in ('Projects', 'Developer', 'code', 'src', 'Documents', 'Desktop')]:
-        try:
-            names = sorted(os.listdir(d))
-        except OSError:
-            continue
-        for n in names:
-            p = os.path.join(d, n)
-            if not n.startswith('.') and p not in seen and os.path.isdir(os.path.join(p, '.git')):
-                seen.add(p)
-                out.append({'name': n, 'path': p})
-    return out[:80]
+def set_place(proj, host, path):
+    p = projects[proj]
+    if host == LOCAL_HOST:
+        p['path'] = path
+    else:
+        p['remote'] = {'host': host, 'path': path}
+
+
+def place_of(proj):
+    """(host, path) where agents of this project can run: this Mac first, else a connected runner."""
+    p = projects.get(proj) or {}
+    if p.get('path') and os.path.isdir(p['path']):
+        return LOCAL_HOST, p['path']
+    r = p.get('remote') or {}
+    if r.get('host') and runner_online(r['host']):
+        return r['host'], r['path']
+    return None, None
 
 
 _limits = {'at': 0, 'val': {}}
@@ -796,13 +843,15 @@ def snapshot():
                 'url': settings['ntfyServer'].rstrip('/') + '/' + settings['ntfyTopic'] if settings['ntfyTopic'] else ''}
         return {'now': time.time(), 'viewers': len(clients), 'settings': {'approveWait': settings['approveWait'], 'agentProxy': settings['agentProxy']},
                 'integrations': integrations(), 'ntfy': ntfy,
-                'projects': [{'name': p['name'], 'color': p['color'], 'path': p.get('path') or ''} for p in projs],
+                'projects': [{'name': p['name'], 'color': p['color'], 'path': p.get('path') or (p.get('remote') or {}).get('path', ''),
+                              'host': LOCAL_HOST if p.get('path') else (p.get('remote') or {}).get('host', '')} for p in projs],
                 'agents': pub, 'log': log[:40], 'limits': cached_limits(), 'weather': weather, 'briefing': briefing,
                 'boards': {k: {'goal': v['goal'], 'status': v['status'], 'report': v['report'], 'lead': v['lead'],
                                'tasks': [{x: t[x] for x in ('id', 'title', 'status', 'owner', 'note')} for t in v['tasks']],
                                'room': [{x: m[x] for x in ('from', 'to', 'text', 't')} for m in v['room'][-20:]]}
                            for k, v in boards.items() if k in {p['name'] for p in projs}},
-                'kinds': [k for k in KINDS if runners.binary(k) and k not in BROKEN], 'broken': BROKEN,
+                'kinds': host_kinds(LOCAL_HOST), 'broken': BROKEN, 'localHost': LOCAL_HOST,
+                'hosts': {h: host_kinds(h) for h in [LOCAL_HOST] + [h for h in REMOTE if runner_online(h)]},
                 'web': int(os.path.getmtime(os.path.join(WEB, 'index.html')))}
 
 
@@ -874,6 +923,11 @@ def janitor():
                     del agents[key]
                 elif a['status'] == 'working' and now - a['last'] > IDLE_AFTER:
                     set_status(a, 'resting', 'Тихо больше 15 минут')
+            for jid, proc in list(RJOBS.items()):
+                if not runner_online(proc.host) and time.time() - (REMOTE.get(proc.host) or {}).get('last', 0) > 120:
+                    proc.feed(['исполнитель на %s пропал со связи' % proc.host])
+                    proc.finish(-2)
+                    RJOBS.pop(jid, None)
             for ap_id, ap in list(approvals.items()):
                 if ap['decision'] and ap['event'].is_set() and not any(a['approval'] == ap_id for a in agents.values()):
                     del approvals[ap_id]
@@ -921,7 +975,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json(404, {'error': 'нет такого агента'})
                 return self._json(200, {'id': aid, 'chat': list(a.get('chat') or [])})
         if path == '/api/dirs':
-            return self._json(200, {'dirs': scan_dirs()})
+            dirs = [dict(d, host=LOCAL_HOST) for d in runners.scan_dirs()]
+            with lock:
+                for h, rn in REMOTE.items():
+                    if runner_online(h):
+                        dirs += [dict(d, host=h) for d in rn.get('dirs') or []]
+            return self._json(200, {'dirs': dirs})
         if path == '/':
             path = '/index.html'
         full = os.path.normpath(os.path.join(WEB, path.lstrip('/')))
@@ -1008,6 +1067,41 @@ class Handler(BaseHTTPRequestHandler):
                     ntfy_state['since'] = '1h'
             mark_dirty()
             return self._json(200, {'ok': True})
+        if url.path == '/api/runner/poll':
+            host = str(body.get('host') or '')[:40]
+            if not host or host == LOCAL_HOST:
+                return self._json(400, {'error': 'bad host'})
+            with lock:
+                rn = REMOTE.setdefault(host, {'jobs': queue.Queue()})
+                fresh = not runner_online(host)
+                rn.update(last=time.time(), kinds=[k for k in body.get('kinds') or [] if k in KINDS], dirs=(body.get('dirs') or [])[:80])
+                if fresh:
+                    add_log('Офис', 'на связи исполнитель на ' + host, 'done')
+                    mark_dirty()
+            try:
+                return self._json(200, {'job': rn['jobs'].get(timeout=20)})
+            except queue.Empty:
+                return self._json(200, {})
+        if url.path in ('/api/runner/lines', '/api/runner/done'):
+            with lock:
+                proc = RJOBS.get(str(body.get('job') or ''))
+                if proc and body.get('meta'):
+                    a = agents.get(proc.agent)
+                    if a and a.get('managed'):
+                        a['managed'].update(path=body['meta'].get('cwd') or a['managed']['path'], branch=body['meta'].get('branch'))
+                        a['cwd'] = a['managed']['path']
+            if not proc:
+                return self._json(404, {'error': 'unknown job'})
+            if url.path == '/api/runner/lines':
+                proc.feed(body.get('lines') or [])
+            else:
+                proc.finish(int(body.get('rc') or 0))
+                with lock:
+                    RJOBS.pop(proc.id, None)
+            return self._json(200, {'ok': True})
+        if url.path == '/api/clienterror':
+            print('[page error]', time.strftime('%H:%M:%S'), str(body.get('msg') or '')[:3000], flush=True)
+            return self._json(200, {'ok': True})
         if url.path == '/api/mcp':
             with lock:
                 text, err = mcp_call(body)
@@ -1053,12 +1147,18 @@ def _office_run(self, path, body):
     try:
         with lock:
             if path == '/api/hire':
-                kind, where = body.get('kind'), os.path.realpath(os.path.expanduser(str(body.get('path') or '')))
-                if kind not in KINDS or not runners.binary(kind):
-                    return self._json(400, {'error': 'этот агент не установлен на Маке'})
-                if not os.path.isdir(where) or not where.startswith(os.path.expanduser('~') + os.sep):
-                    return self._json(400, {'error': 'папка должна существовать и лежать в домашней папке'})
-                return self._json(200, {'id': hire(kind, where, text)['id']})
+                kind, host = body.get('kind'), str(body.get('host') or LOCAL_HOST)
+                if kind not in host_kinds(host):
+                    return self._json(400, {'error': 'этот агент недоступен на %s' % host})
+                if host == LOCAL_HOST:
+                    where = os.path.realpath(os.path.expanduser(str(body.get('path') or '')))
+                    if not os.path.isdir(where) or not where.startswith(os.path.expanduser('~') + os.sep):
+                        return self._json(400, {'error': 'папка должна существовать и лежать в домашней папке'})
+                else:
+                    where = str(body.get('path') or '')
+                    if not where.startswith('/'):
+                        return self._json(400, {'error': 'нужен полный путь к папке на ' + host})
+                return self._json(200, {'id': hire(kind, where, text, host=host)['id']})
             a = agents.get(str(body.get('id') or ''))
             if not a:
                 return self._json(404, {'error': 'нет такого агента'})

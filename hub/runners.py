@@ -4,18 +4,50 @@ Events yielded by parse(): ('session', id) · ('text', str) · ('tool', name, in
 """
 import json
 import os
+import subprocess
 
 HOOK = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'office_hook.py')
 MCP = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'office_mcp.py')
+KINDS_RUNNABLE = ('claude', 'codex', 'antigravity')
 BIN = {
     'claude': ['/usr/local/bin/claude', os.path.expanduser('~/.local/bin/claude')],
-    'codex': ['/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex', '/usr/local/bin/codex'],
+    'codex': ['/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex', '/usr/local/bin/codex', os.path.expanduser('~/.local/bin/codex')],
     'antigravity': [os.path.expanduser('~/.gemini/bin/agy')],
 }
 # Read-only commands an office Claude may run without asking; everything else in Bash asks in the office.
 SAFE_BASH = ['Bash(git status*)', 'Bash(git diff*)', 'Bash(git log*)', 'Bash(git show*)', 'Bash(ls*)', 'Bash(cat*)',
              'Bash(rg *)', 'Bash(grep *)', 'Bash(pwd)', 'Bash(head *)', 'Bash(tail *)', 'Bash(wc *)',
              'Bash(git add *)', 'Bash(git commit *)', 'mcp__office']   # commits stay in the agent's own branch
+
+
+PROJECT_MARKS = ('.git', 'CLAUDE.md', 'AGENTS.md', '.claude', 'package.json', 'pyproject.toml', 'requirements.txt', 'Cargo.toml', 'go.mod')
+
+
+def scan_dirs():
+    """Projects (git repos or folders with project files) in the usual places under the home folder."""
+    home, out, seen = os.path.expanduser('~'), [], set()
+    for d in [home] + [os.path.join(home, x) for x in ('Projects', 'Developer', 'code', 'src', 'Documents', 'Desktop')]:
+        try:
+            names = sorted(os.listdir(d))
+        except OSError:
+            continue
+        for n in names:
+            p = os.path.join(d, n)
+            if not n.startswith('.') and p not in seen and any(os.path.exists(os.path.join(p, m)) for m in PROJECT_MARKS):
+                seen.add(p)
+                out.append({'name': n, 'path': p})
+    return out[:80]
+
+
+def make_worktree(root, key):
+    """A separate checkout on its own branch, so agents of one project never edit the same files."""
+    git = lambda *a: subprocess.run(['git', '-C', root, *a], capture_output=True, text=True, timeout=30)
+    if not os.path.isdir(os.path.join(root, '.git')) or git('rev-parse', '--verify', 'HEAD').returncode:
+        return root, None
+    tag = key.split(':')[-1][:8]
+    branch, wt = 'office/' + tag, os.path.join(os.path.dirname(root), '.office-worktrees', os.path.basename(root), tag)
+    r = git('worktree', 'add', '-b', branch, wt)
+    return (wt, branch) if r.returncode == 0 else (root, None)
 
 
 def binary(kind):
