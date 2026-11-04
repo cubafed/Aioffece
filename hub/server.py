@@ -114,12 +114,12 @@ def set_status(a, status, task=None):
         a['task'] = short(task, 110)
 
 
-def new_agent(key, src, sid, p):
+def new_agent(key, src, sid, p, name=None):
     proj = p.get('project') or base(p.get('cwd')) or 'Без проекта'
     ensure_project(proj)
-    nm = NAMES.get(src, src.capitalize()) + '·' + proj
+    nm = name or NAMES.get(src, src.capitalize()) + '·' + proj
     same = [x for x in agents.values() if x['name'].startswith(nm)]
-    if same:
+    if same and not name:
         nm += ' ' + str(len(same) + 1)
     a = {'id': key, 'src': src, 'session': sid, 'name': nm, 'project': proj, 'cwd': p.get('cwd') or '',
          'host': p.get('host') or '', 'status': 'resting', 'task': 'Сессия открыта', 'prompt': '',
@@ -176,6 +176,8 @@ def handle_hook(src, p):
         ap = None
         if ev == 'SessionStart':
             set_status(a, 'resting', 'Сессия открыта')
+        elif ev == 'UserPromptSubmit' and str(p.get('prompt') or '').lstrip().startswith(('<task-notification', '<system-reminder')):
+            set_status(a, 'working')      # background notification, not a new task from the user
         elif ev == 'UserPromptSubmit':
             a['prompt'] = short(p.get('prompt'), 110)
             a['tasks'] += 1
@@ -276,8 +278,7 @@ def handle_status_line(text):
     with lock:
         a = agents.get(key)
         if a is None:
-            a = new_agent(key, 'grok', name, {'project': floor or 'Grok', 'host': 'Grok Bot'})
-            a['name'] = name
+            a = new_agent(key, 'grok', name, {'project': floor or 'Grok', 'host': 'Grok Bot'}, name=name)
         elif floor and floor != a['project']:
             a['project'] = floor
         ensure_project(a['project'])
