@@ -1,6 +1,7 @@
 // ИИ-Офис: native window around the office UI served by the local hub (hub/server.py).
 import Cocoa
 import WebKit
+import UserNotifications
 
 let officeURL = URL(string: ProcessInfo.processInfo.environment["AI_OFFICE_URL"] ?? "http://127.0.0.1:4747/")!
 
@@ -9,11 +10,12 @@ final class DragStrip: NSView {
     override var mouseDownCanMoveWindow: Bool { true }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSMenuDelegate, UNUserNotificationCenterDelegate {
     var window: NSWindow!
     var status: NSStatusItem!
     var agents: [[String: Any]] = []
     var online = false
+    var seen: [String: (status: String, approval: String)]? = nil   // nil until the first poll: no burst of old news at launch
     var web: WKWebView!
     var retry: Timer?
 
@@ -48,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         window.makeKeyAndOrderFront(nil)
         buildMenu()
         buildStatusItem()
+        setupNotifications()
         load()
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -105,6 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
                 self.online = json != nil
                 self.agents = (json?["agents"] as? [[String: Any]]) ?? []
                 self.paintStatus()
+                if json != nil { self.notifyChanges() }
             }
         }.resume()
     }
@@ -151,14 +155,76 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let open = NSMenuItem(title: "Открыть офис", action: #selector(showOffice), keyEquivalent: "o"); open.target = self; menu.addItem(open)
         menu.addItem(NSMenuItem(title: "Выйти", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }
-    @objc func decide(_ sender: NSMenuItem) {
-        guard let body = sender.representedObject as? [String: String] else { return }
+    // MARK: notifications: who waits for you, who finished, who got stuck
+    func setupNotifications() {
+        let c = UNUserNotificationCenter.current()
+        c.delegate = self
+        let allow = UNNotificationAction(identifier: "allow", title: "Одобрить", options: [])
+        let deny = UNNotificationAction(identifier: "deny", title: "Отклонить", options: [.destructive])
+        c.setNotificationCategories([UNNotificationCategory(identifier: "approval", actions: [allow, deny], intentIdentifiers: [], options: [])])
+        c.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+    }
+    func notifyChanges() {
+        var now: [String: (status: String, approval: String)] = [:]
+        for a in agents {
+            guard let id = a["id"] as? String, !(a["chatOnly"] as? Bool ?? false) else { continue }
+            now[id] = (a["status"] as? String ?? "", a["approval"] as? String ?? "")
+        }
+        defer { seen = now }
+        guard let before = seen else { return }
+        let looking = NSApp.isActive && window.isVisible && window.isKeyWindow
+        for a in agents {
+            guard let id = a["id"] as? String, let cur = now[id] else { continue }
+            let old = before[id]
+            let name = a["name"] as? String ?? "Агент", task = a["task"] as? String ?? ""
+            if !cur.approval.isEmpty && cur.approval != old?.approval {
+                post(id: "ap-" + cur.approval, title: "\(name) ждёт разрешения", body: task, category: "approval",
+                     info: ["approval": cur.approval], sound: true, looking: looking)
+            } else if cur.status != old?.status, old != nil {
+                if cur.status == "done" && old?.status == "working" {
+                    let reply = (a["reply"] as? String ?? "")
+                    post(id: "done-" + id, title: "\(name) закончил", body: reply.isEmpty ? task : reply, category: "", info: [:], sound: false, looking: looking)
+                } else if cur.status == "error" {
+                    post(id: "err-" + id, title: "\(name) застрял", body: task, category: "", info: [:], sound: true, looking: looking)
+                }
+            }
+        }
+        NSApp.dockTile.badgeLabel = now.values.contains { !$0.approval.isEmpty } ? "\(now.values.filter { !$0.approval.isEmpty }.count)" : nil
+    }
+    func post(id: String, title: String, body: String, category: String, info: [String: String], sound: Bool, looking: Bool) {
+        if looking { return }                       // the office is in front of you: it already shows this
+        let c = UNMutableNotificationContent()
+        c.title = title
+        c.body = String(body.prefix(220))
+        c.categoryIdentifier = category
+        c.userInfo = info
+        if sound { c.sound = .default }
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: c, trigger: nil))
+    }
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                withCompletionHandler done: @escaping () -> Void) {
+        let ap = response.notification.request.content.userInfo["approval"] as? String ?? ""
+        switch response.actionIdentifier {
+        case "allow", "deny": if !ap.isEmpty { send(decision: response.actionIdentifier, id: ap) }
+        default: showOffice()
+        }
+        done()
+    }
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent n: UNNotification,
+                                withCompletionHandler done: @escaping (UNNotificationPresentationOptions) -> Void) {
+        done([.banner, .sound])
+    }
+    func send(decision: String, id: String) {
         var req = URLRequest(url: officeURL.appendingPathComponent("api/decide"))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue("1", forHTTPHeaderField: "X-Office")          // the hub's CSRF guard
-        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        req.setValue("1", forHTTPHeaderField: "X-Office")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["id": id, "decision": decision])
         URLSession.shared.dataTask(with: req) { [weak self] _, _, _ in DispatchQueue.main.async { self?.poll() } }.resume()
+    }
+    @objc func decide(_ sender: NSMenuItem) {
+        guard let b = sender.representedObject as? [String: String], let id = b["id"], let d = b["decision"] else { return }
+        send(decision: d, id: id)
     }
 
     @objc func reload() { load() }

@@ -1439,6 +1439,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {'ok': True})
         if url.path in ('/api/hire', '/api/send', '/api/stop', '/api/fork', '/api/chatnew'):
             return self._office_run(url.path, body)
+        if url.path == '/api/forgetproject':
+            with lock:
+                name = str(body.get('project') or '')
+                busy = any(a['project'] == name for a in agents.values())
+                if name in projects and not busy:
+                    projects[name]['last'] = 0          # an empty floor leaves the tower now instead of after PROJECT_TTL
+                    add_log('Ты', 'убрал этаж ' + name, 'resting')
+                    mark_dirty()
+            return self._json(200 if name in projects and not busy else 409, {'ok': not busy} if not busy else {'error': 'на этаже ещё есть агенты'})
         if url.path == '/api/forget':
             with lock:
                 a = agents.pop(str(body.get('id') or ''), None)

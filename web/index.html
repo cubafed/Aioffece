@@ -399,6 +399,7 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
     <button class="btn ghost" id="skinBtn" title="Скин офиса"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.6-.8 1.6-1.7 0-.9-.7-1.3-.7-2.1 0-.9.7-1.6 1.6-1.6H17a4 4 0 0 0 4-4c0-4.7-4-8.6-9-8.6z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10.5" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/></svg><span class="lbl" id="skinLbl">Стекло</span></button>
     <button class="btn ghost" id="miniBtn" aria-pressed="false" title="Миниатюра: размытые края, как у макета"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 18h18" opacity=".45"/><circle cx="12" cy="12" r="3"/></svg><span class="lbl">Миниатюра</span></button>
     <button class="btn ghost" id="soundBtn" aria-pressed="false" title="Звуки офиса"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path id="soundWave" d="M15.5 8.5a5 5 0 0 1 0 7"/></svg><span class="lbl" id="soundLbl">Звук</span></button>
+    <button class="btn ghost" id="fxBtn" aria-pressed="true" title="Мягкие тени и свечение. Выключи, если Мак греется"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3l2.4 5.6L20 11l-5.6 2.4L12 19l-2.4-5.6L4 11l5.6-2.4z"/></svg><span class="lbl" id="fxLbl">Графика: высокая</span></button>
     <p class="muted" style="margin:6px 4px 2px;font-size:12px">⌘K — поиск и команды</p>
   </div></div>
   <button class="btn ghost" id="chatsBtn" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="lbl">Чаты</span></button>
@@ -466,6 +467,17 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
 <script src="vendor/three.min.js"></script>
 <script>window.THREE || document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"><\/script>')</script>
 <script src="vendor/OrbitControls.js"></script>
+<script src="vendor/CopyShader.js"></script>
+<script src="vendor/LuminosityHighPassShader.js"></script>
+<script src="vendor/SAOShader.js"></script>
+<script src="vendor/DepthLimitedBlurShader.js"></script>
+<script src="vendor/UnpackDepthRGBAShader.js"></script>
+<script src="vendor/EffectComposer.js"></script>
+<script src="vendor/MaskPass.js"></script>
+<script src="vendor/RenderPass.js"></script>
+<script src="vendor/ShaderPass.js"></script>
+<script src="vendor/UnrealBloomPass.js"></script>
+<script src="vendor/SAOPass.js"></script>
 <script>(window.THREE && THREE.OrbitControls) || document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"><\/script>')</script>
 <script>
 (() => {
@@ -1109,7 +1121,7 @@ function renderPult() {
       mis = `<div class="mis"><div style="display:flex;gap:8px;align-items:baseline"><span style="flex:1"><b>Миссия:</b> ${esc(b.goal)} <span class="muted">· ${esc(b.status === 'done' ? 'выполнена' : b.status === 'paused' ? 'на паузе' : b.lead ? 'идёт' : 'Диспетчер не запущен')}</span></span><button class="btn ghost" style="min-height:24px;padding:0 8px;font-size:11.5px" data-cancelmis="${esc(f.name)}">Отменить</button></div>${tot ? `<div class="pb"><i style="width:${Math.round(done / tot * 100)}%"></i></div><div class="muted">${done} из ${tot} задач${br ? ' · веток на ревью: ' + br : ''}</div>` : ''}</div>`; }
     const goalForm = f.annex || !S.live || !pk.length ? '' : `<form class="goalf" data-goalf="${fi}" data-k="${pk[0] || 'claude'}"><input data-goalin="${fi}" placeholder="Цель команде: что сделать в ${esc(f.name)}…" value="${esc(goalVals[fi] || '')}" autocomplete="off">${pk.length > 1 ? `<select name="k" aria-label="Диспетчер">${pk.map(k => `<option value="${k}">${KIND[k].label}</option>`).join('')}</select>` : ''}<button class="btn" type="submit">Поставить</button></form>`;
     return `<section class="card pc"><div class="ph"><span class="sw" style="background:${f.color}"></span><b>${esc(f.annex ? 'Grok' : f.name)}</b>${host ? `<span class="host">${host}</span>` : ''}<span class="sp"></span>
-      ${br ? `<button class="btn ghost" data-review="${esc(b.branches[0].branch)}" data-rfi="${fi}">Ветки ${br}</button>` : ''}<button class="btn ghost" data-floor="${fi}" data-pultfloor="1">В офис</button></div>
+      ${br ? `<button class="btn ghost" data-review="${esc(b.branches[0].branch)}" data-rfi="${fi}">Ветки ${br}</button>` : ''}${!f.agents.length && !f.annex ? `<button class="btn ghost" data-forgetproj="${esc(f.name)}">Убрать</button>` : ''}<button class="btn ghost" data-floor="${fi}" data-pultfloor="1">В офис</button></div>
       ${mis}${list.map(agentRow).join('') || '<div class="pempty" style="padding:16px">Агентов пока нет</div>'}${goalForm}</section>`;
   }).join('');
   const html = `<div class="bar"><h1>Пульт</h1><div class="card chips">${chips}</div></div><div class="grid">${cards || '<div class="pempty">Под этот фильтр никого нет</div>'}</div>`;
@@ -1127,6 +1139,7 @@ document.addEventListener('submit', (e) => {
     api('/api/mission', { project: fl.name, text, kind }).then(() => { log('Ты', 'цель для ' + fl.name + ': ' + text, 'working'); renderUI(); }).catch(toastErr); }
 });
 $('pult').addEventListener('click', (e) => { const c = e.target.closest('[data-pf]'); if (c) { S.pf = c.dataset.pf; renderPult(); return; }
+  const fp = e.target.closest('[data-forgetproj]'); if (fp) { e.stopPropagation(); api('/api/forgetproject', { project: fp.dataset.forgetproj }).catch(toastErr); return; }
   const cm = e.target.closest('[data-cancelmis]'); if (cm) { e.stopPropagation(); api('/api/mission', { project: cm.dataset.cancelmis, cancel: true }).then(() => log('Ты', 'отменил миссию: ' + cm.dataset.cancelmis, 'resting')).catch(toastErr); return; }
   const r = e.target.closest('[data-rfi]'); if (r) S.floor = +r.dataset.rfi;   // openReview reads the current floor
   if (e.target.closest('[data-pultfloor]')) setPult(false); }, true);
@@ -1134,6 +1147,8 @@ document.addEventListener('focusout', (e) => { if (e.target.dataset && e.target.
 $('viewBtn').onclick = (e) => { e.stopPropagation(); const m = $('viewMenu'); m.hidden = !m.hidden; $('viewBtn').setAttribute('aria-expanded', String(!m.hidden)); };
 document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.viewwrap')) { $('viewMenu').hidden = true; $('viewBtn').setAttribute('aria-expanded', 'false'); } });
 $('tourBtn').addEventListener('click', () => { $('viewMenu').hidden = true; });
+function paintFX() { $('fxBtn').hidden = !FX; if (FX) { $('fxBtn').setAttribute('aria-pressed', String(FX.on)); $('fxLbl').textContent = 'Графика: ' + (FX.on ? 'высокая' : 'обычная'); } }
+$('fxBtn').onclick = () => { if (!FX) return; FX.on = !FX.on; store.set('office-fx', FX.on ? '1' : '0'); paintFX(); };
 $('skinBtn').onclick = () => { const ks = Object.keys(SKINS); setSkin(ks[(ks.indexOf(S.skin) + 1) % ks.length]); };
 $('tourBtn').onclick = () => (S.tour ? stopTour() : startTour());
 S.mini = store.get('office-mini') === '1'; document.body.classList.toggle('mini', S.mini); $('miniBtn').setAttribute('aria-pressed', String(S.mini));
@@ -1302,10 +1317,48 @@ function applyDark() {
   POOL_MAT.opacity = d ? 0.55 : 0;
   updateSun();
   applySkin();
+  tuneFX(); paintFX();
   renderUI();
 }
+// ---- post-processing: ambient occlusion grounds every object, bloom makes lit windows and screens glow.
+// Rendering into a target skips three's tone mapping, so the last pass does ACES + sRGB itself.
+const OutShader = { uniforms: { tDiffuse: { value: null }, exposure: { value: 1 }, vig: { value: 0.18 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float exposure; uniform float vig; varying vec2 vUv;
+    vec3 fit(vec3 v){ vec3 a = v * (v + 0.0245786) - 0.000090537; vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081; return a / b; }
+    vec3 aces(vec3 c){ const mat3 I = mat3(vec3(0.59719,0.07600,0.02840), vec3(0.35458,0.90834,0.13383), vec3(0.04823,0.01566,0.83777));
+      const mat3 O = mat3(vec3(1.60475,-0.10208,-0.00327), vec3(-0.53108,1.10813,-0.07276), vec3(-0.07367,-0.00605,1.07602));
+      c *= exposure / 0.6; return clamp(O * fit(I * c), 0.0, 1.0); }
+    vec3 srgb(vec3 c){ return mix(pow(c, vec3(0.41666)) * 1.055 - 0.055, c * 12.92, vec3(lessThanEqual(c, vec3(0.0031308)))); }
+    void main(){ vec4 t = texture2D(tDiffuse, vUv); vec3 c = srgb(aces(t.rgb));
+      float d = distance(vUv, vec2(0.5)); c *= 1.0 - vig * smoothstep(0.35, 0.85, d);
+      gl_FragColor = vec4(c, 1.0); }` };
+let FX = null;
+function setupFX() {
+  if (!THREE.EffectComposer || !THREE.SAOPass || !THREE.UnrealBloomPass || !renderer.capabilities.isWebGL2) return;
+  try {
+    const sz = renderer.getDrawingBufferSize(new THREE.Vector2());
+    const rt = new THREE.WebGLRenderTarget(sz.x, sz.y, { type: THREE.HalfFloatType, samples: 4 });
+    const comp = new THREE.EffectComposer(renderer, rt);
+    comp.addPass(new THREE.RenderPass(scene, camera));
+    const sao = new THREE.SAOPass(scene, camera, false, true);
+    Object.assign(sao.params, { saoBias: 0.5, saoIntensity: 0.0035, saoScale: 6, saoKernelRadius: 22, saoMinResolution: 0, saoBlur: true, saoBlurRadius: 6, saoBlurStdDev: 3, saoBlurDepthCutoff: 0.01 });
+    comp.addPass(sao);
+    const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(sz.x, sz.y), 0.35, 0.5, 0.92);
+    comp.addPass(bloom);
+    const out = new THREE.ShaderPass(OutShader); comp.addPass(out);
+    FX = { comp, sao, bloom, out, on: store.get('office-fx') !== '0' };
+    tuneFX();
+  } catch (e) { FX = null; console.warn('post-processing off:', e); }
+}
+function tuneFX() {
+  if (!FX) return;
+  FX.bloom.strength = S.dark ? 0.85 : 0.18; FX.bloom.threshold = S.dark ? 0.62 : 0.95; FX.bloom.radius = S.dark ? 0.6 : 0.4;
+  FX.out.uniforms.exposure.value = renderer.toneMappingExposure; FX.out.uniforms.vig.value = S.dark ? 0.32 : 0.16;
+  FX.sao.params.saoIntensity = S.dark ? 0.002 : 0.0035;
+}
 function resize() { const w = innerWidth, h = innerHeight, a = w / h, v = w < 760 ? 70 : 52;
-  camera.left = -v * a / 2; camera.right = v * a / 2; camera.top = v / 2; camera.bottom = -v / 2; camera.updateProjectionMatrix(); renderer.setSize(w, h); }
+  camera.left = -v * a / 2; camera.right = v * a / 2; camera.top = v / 2; camera.bottom = -v / 2; camera.updateProjectionMatrix(); renderer.setSize(w, h); if (FX) { FX.comp.setPixelRatio(renderer.getPixelRatio()); FX.comp.setSize(w, h); } }
 addEventListener('resize', resize);
 
 /* ================= loop ================= */
@@ -1381,7 +1434,7 @@ function frameBody(t) {
     const cz = PZ + 24 - ((t / 25) % 1000) / 1000 * 26; movingCar.position.z = cz;
     spray.scale.setScalar(1 + Math.sin(t / 200) * 0.08);
   }
-  renderer.render(scene, camera);
+  if (FX && FX.on) FX.comp.render(); else renderer.render(scene, camera);
 }
 
 /* ================= simulation (demo) ================= */
@@ -2104,6 +2157,6 @@ async function boot() {
     S.live = true; document.body.classList.add('live'); FLOORS = []; applyHub(st); connectStream();
   } catch (e) { S.live = false; rebuild(); }
 }
-resize(); boot().then(() => { applyDark(); requestAnimationFrame(frame); if (S.sound) addEventListener('pointerdown', soundscape, { once: true }); });
+setupFX(); resize(); boot().then(() => { applyDark(); requestAnimationFrame(frame); if (S.sound) addEventListener('pointerdown', soundscape, { once: true }); });
 })();
 </script>
