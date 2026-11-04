@@ -174,6 +174,12 @@ body.live #routinesCard{display:none}
 .bd .goal{background:var(--chip);border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.35}
 .bd .rep{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;white-space:pre-wrap}
 .bd .acts{display:flex;gap:6px;flex-wrap:wrap}
+.diff{font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--chip);border-radius:8px;padding:8px 10px;max-height:46vh;overflow:auto;white-space:pre;margin:6px 0}
+.diff .a{color:#1a7f37;background:rgba(46,160,67,.12)}.diff .d{color:#cf222e;background:rgba(248,81,73,.12)}.diff .h{color:#8250df;font-weight:700}
+body[data-dark="1"] .diff .a{color:#7ee2a0}body[data-dark="1"] .diff .d{color:#ff8a85}body[data-dark="1"] .diff .h{color:#c9a7ff}
+.modal.wide{width:min(900px,100%)}
+.recipes{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 2px}
+.recipes button{font-size:11px;min-height:26px;padding:3px 9px}
 .task{display:flex;gap:8px;align-items:flex-start;font-size:13px;padding:4px 0}
 .pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;color:#fff;white-space:nowrap;margin-top:1px}
 .rm{font-size:12px;line-height:1.35;padding:2px 0}
@@ -842,7 +848,7 @@ function renderConnect() {
 }
 
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-approve],[data-deny],[data-chat],[data-floor],[data-home],[data-sel],[data-wake],[data-pause],[data-closechat],[data-closeconn],[data-unsel],[data-ping],[data-q],[data-routine],[data-forget],[data-wait],[data-ntfy],[data-copyprompt],[data-stop],[data-fork],[data-kind],[data-closehire],[data-mission],[data-briefclose],[data-conv],[data-cmodel],[data-closechats],[data-newchat]'); if (!t) return;
+  const t = e.target.closest('[data-approve],[data-deny],[data-chat],[data-floor],[data-home],[data-sel],[data-wake],[data-pause],[data-closechat],[data-closeconn],[data-unsel],[data-ping],[data-q],[data-routine],[data-forget],[data-wait],[data-ntfy],[data-copyprompt],[data-stop],[data-fork],[data-kind],[data-closehire],[data-mission],[data-briefclose],[data-conv],[data-cmodel],[data-closechats],[data-newchat],[data-review]'); if (!t) return;
   const d = t.dataset;
   if (d.closeconn) { if (e.target === t || t.tagName === 'BUTTON') $('connectWrap').innerHTML = ''; return; }
   if (d.approve) approve(d.approve);
@@ -852,6 +858,7 @@ document.addEventListener('click', (e) => {
   else if (d.stop) { api('/api/stop', { id: d.stop }).catch(e => toastErr(e)); }
   else if (d.kind) { S.hireKind = d.kind; renderHire(); }
   else if (d.mission) openMission(d.mission);
+  else if (d.review) openReview(d.review);
   else if (d.conv) { S.chatsSel = d.conv; S.chatsMsgs = null; S.chatsLen = -1; renderChats(); loadConv(d.conv); }
   else if (d.newchat) { S.chatsSel = null; renderChats(); }
   else if (d.cmodel) { S.chatsModel = d.cmodel; renderChats(); }
@@ -1094,7 +1101,33 @@ function boardHtml(f) {
   return `<div class="bd"><div class="goal">${b.goal ? `<p class="cap" style="margin-bottom:3px">Цель${b.status === 'done' ? ' · выполнена' : b.status === 'active' ? ' · в работе' : ''}</p>${esc(b.goal)}` : 'Цели нет. Поставь её: Диспетчер разобьёт на задачи, наймёт исполнителей, каждый будет работать в своей git-ветке, а слияние ты одобришь.'}</div>
     ${b.report ? `<div class="rep"><b>Отчёт.</b> ${esc(b.report)}</div>` : ''}
     <div class="acts"><button class="btn" data-mission="goal">${b.goal ? 'Новая цель' : 'Поставить цель'}</button><button class="btn ghost" data-mission="task">+ Задача</button>${b.lead ? '<button class="btn ghost" data-mission="room">Написать команде</button>' : ''}</div>
+    ${b.branches && b.branches.length ? `<p class="cap">Ветки исполнителей</p>${b.branches.map(r => `<div class="task"><span class="pill s-${r.status === 'done' ? 'review' : 'doing'}">${r.status === 'done' ? 'сдал' : 'в работе'}</span><div style="flex:1;min-width:0"><b>${esc(r.worker)}</b> <span class="muted" style="font-size:11px">${esc(r.branch)}</span></div>${b.local ? `<button class="btn ghost" data-review="${esc(r.branch)}">Посмотреть</button>` : ''}</div>`).join('')}` : ''}
     <p class="cap">Задачи</p>${tasks}${room ? `<p class="cap">Переписка команды</p>${room}` : ''}</div>`;
+}
+const RECIPES = [
+  ['Почини падающие тесты', 'Запусти тесты проекта, найди падающие, разберись в причинах и почини их по одному. В конце все тесты должны проходить.'],
+  ['Ревью последних коммитов', 'Сделай ревью последних 5 коммитов: найди баги, рискованные места и плохой код. Каждую находку оформи задачей и исправь важные.'],
+  ['Найди баги', 'Пройдись по основному коду и найди вероятные баги и необработанные ошибки. Каждый баг оформи задачей с объяснением и исправь.'],
+  ['Покрой тестами', 'Найди важные места без тестов и напиши к ним тесты. Тесты должны проходить.'],
+  ['Обнови зависимости', 'Проверь устаревшие зависимости, обнови безопасные минорные версии, прогони тесты и поправь, если что-то сломалось.'],
+  ['Напиши README', 'Напиши или обнови README: что это за проект, как запустить, как устроен, где что лежит.']
+];
+function openReview(branch) {
+  const f = FLOORS[S.floor]; if (!f) return;
+  $('hireWrap').innerHTML = '<div class="scrim" data-closehire="1"><div class="card modal wide"><p class="muted">Загружаю ветку…</p></div></div>';
+  api('/api/review?project=' + encodeURIComponent(f.name) + '&branch=' + encodeURIComponent(branch)).then(r => {
+    const lines = esc(r.diff || 'Изменений нет').split('\n').map(l => l.startsWith('+') && !l.startsWith('+++') ? `<span class="a">${l}</span>` : l.startsWith('-') && !l.startsWith('---') ? `<span class="d">${l}</span>` : l.startsWith('@@') || l.startsWith('diff ') ? `<span class="h">${l}</span>` : l).join('\n');
+    $('hireWrap').innerHTML = `<div class="scrim" data-closehire="1"><form class="card modal wide hire" id="revForm" role="dialog" aria-modal="true" aria-labelledby="rTitle"><h2 id="rTitle">Ветка ${esc(branch)} → ${esc(r.base)}</h2>
+      <p class="cap">Коммиты</p><div class="diff" style="max-height:120px">${esc(r.commits || 'Коммитов нет: исполнитель ещё ничего не закоммитил')}</div>
+      <p class="cap">Файлы</p><div class="diff" style="max-height:120px">${esc(r.stat || '—')}</div>
+      <p class="cap">Изменения${r.truncated ? ' (показано начало)' : ''}</p><div class="diff">${lines}</div>
+      <label for="revNote">Замечание, если возвращаешь</label><textarea id="revNote" placeholder="Что поправить"></textarea>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="btn ghost" data-closehire="1">Закрыть</button><button type="button" class="btn ghost" id="revBack">Вернуть с замечанием</button><button class="btn" type="submit" ${r.commits ? '' : 'disabled'}>Слить в ${esc(r.base)}</button></div></form></div>`;
+    $('revBack').onclick = () => { const note = $('revNote').value.trim(); if (!note) return $('revNote').focus();
+      api('/api/return', { project: f.name, branch, text: note }).then(() => { $('hireWrap').innerHTML = ''; }).catch(toastErr); };
+    $('revForm').onsubmit = (e) => { e.preventDefault();
+      api('/api/merge', { project: f.name, branch }).then(() => { $('hireWrap').innerHTML = ''; S.confetti = { floor: f.name, t0: performance.now() }; }).catch(toastErr); };
+  }).catch(e => { $('hireWrap').innerHTML = ''; toastErr(e); });
 }
 function openMission(mode) {
   const f = FLOORS[S.floor]; if (!f) return;
@@ -1105,9 +1138,11 @@ function openMission(mode) {
   S.missionKind = S.missionKind && kinds.includes(S.missionKind) ? S.missionKind : kinds[0];
   $('hireWrap').innerHTML = `<div class="scrim" data-closehire="1"><form class="card modal hire" id="mForm" role="dialog" aria-modal="true" aria-labelledby="mTitle"><h2 id="mTitle">${esc(title)}</h2>
     ${mode === 'goal' ? `<p class="muted" style="margin:0">Диспетчер разобьёт цель на задачи и наймёт до трёх исполнителей. Команды в терминале и слияние веток будут просить разрешения здесь.</p><label>Диспетчер</label><div class="opts" role="group" aria-label="Диспетчер">${kinds.map(k => `<button type="button" class="btn ghost" data-mkind="${k}" aria-pressed="${k === S.missionKind}">${KIND_RU[k]}</button>`).join('')}</div>` : ''}
+    ${mode === 'goal' ? `<label>Рецепты</label><div class="recipes">${RECIPES.map((r, i) => `<button type="button" class="btn ghost" data-recipe="${i}">${esc(r[0])}</button>`).join('')}</div>` : ''}
     <label for="mText">${mode === 'goal' ? 'Что нужно сделать' : mode === 'task' ? 'Задача' : 'Текст'}</label><textarea id="mText" placeholder="${mode === 'goal' ? 'Например: добавь в Пару напоминания за 10 минут до пары, с тестами' : ''}"></textarea>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button type="button" class="btn ghost" data-closehire="1">Отмена</button><button class="btn" type="submit">${mode === 'goal' ? 'Запустить' : 'Отправить'}</button></div></form></div>`;
   $('mText').focus();
+  $('hireWrap').querySelectorAll('[data-recipe]').forEach(b => b.onclick = () => { $('mText').value = RECIPES[+b.dataset.recipe][1]; $('mText').focus(); });
   $('hireWrap').querySelectorAll('[data-mkind]').forEach(b => b.onclick = () => { S.missionKind = b.dataset.mkind; $('hireWrap').querySelectorAll('[data-mkind]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); });
   $('mForm').onsubmit = (e) => { e.preventDefault(); const text = $('mText').value.trim(); if (!text) return;
     api({ goal: '/api/mission', task: '/api/board', room: '/api/room' }[mode], { project: f.name, text, kind: S.missionKind }).then(() => { $('hireWrap').innerHTML = ''; S.tab = 'board'; renderUI(); }).catch(toastErr); };
@@ -1291,7 +1326,7 @@ function applyHub(st) {
   const grokOnly = new Set(projs.filter(p => { const own = st.agents.filter(h => h.project === p.name && !h.chatOnly); return own.length && own.every(h => h.kind === 'grok'); }).map(p => p.name));
   const tower = projs.filter(p => !grokOnly.has(p.name));
   const floors = (tower.length ? tower : [{ name: 'Холл', color: '#9aa1ad' }]).slice().reverse().map(p => ({ name: p.name, color: p.color, agents: [] }));   // newest project on top
-  if (st.agents.some(h => h.kind === 'grok')) floors.push({ name: 'Grok', color: '#3a3d45', annex: true, agents: [] });
+  if (st.agents.some(h => h.kind === 'grok') || (st.ntfy && st.ntfy.on)) floors.push({ name: 'Grok', color: '#3a3d45', annex: true, agents: [] });
   st.agents.forEach(h => {
     if (h.chatOnly) return;
     const fi = h.kind === 'grok' ? floors.length - 1 : floors.findIndex(f => f.name === h.project); if (fi < 0) return;

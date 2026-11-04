@@ -52,7 +52,7 @@ def run_job(job):
             cwd, branch = runners.make_worktree(cwd, job['agent'])
             post('/api/runner/lines', {'job': jid, 'lines': [], 'meta': {'cwd': cwd, 'branch': branch}})
         cmd = runners.command(job['kind'], job['text'], job.get('sid'), job.get('new_sid'), fork=bool(job.get('fork')),
-                              system=job.get('system') or '', chat=bool(job.get('chat')))
+                              system=job.get('system') or '', chat=bool(job.get('chat')), cwd=cwd, agent=job['agent'])
         env = dict(os.environ, OFFICE_AGENT_ID=job['agent'], AI_OFFICE_URL=URL,
                    PATH=os.path.expanduser('~/.local/bin') + ':/usr/local/bin:/usr/bin:/bin')
         p = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)

@@ -20,10 +20,18 @@ KEEP = ('command', 'description', 'file_path', 'notebook_path', 'path', 'pattern
 
 
 def root_of(cwd):
-    """The git root above cwd, else cwd itself."""
+    """The git root above cwd, else cwd itself. A linked worktree counts as its main repository."""
     d = os.path.abspath(cwd)
     while True:
-        if os.path.exists(os.path.join(d, '.git')):
+        g = os.path.join(d, '.git')
+        if os.path.isfile(g):
+            try:
+                with open(g) as f:
+                    line = f.read().strip()
+            except OSError:
+                return d
+            return line[7:].strip().split('/.git/worktrees/')[0] if line.startswith('gitdir:') and '/.git/worktrees/' in line else d
+        if os.path.isdir(g):
             return d
         parent = os.path.dirname(d)
         if parent == d:

@@ -61,7 +61,7 @@ def claude_settings():
         {'type': 'command', 'command': '/usr/bin/python3 %s claude' % HOOK, 'timeout': 900}]}]}})
 
 
-def command(kind, text, sid, new_sid=None, fork=False, system='', chat=False):
+def command(kind, text, sid, new_sid=None, fork=False, system='', chat=False, cwd=None, agent=''):
     exe = binary(kind)
     if not exe:
         raise RuntimeError('%s не установлен на этом Маке' % kind)
@@ -70,7 +70,7 @@ def command(kind, text, sid, new_sid=None, fork=False, system='', chat=False):
     if kind == 'claude':
         cmd = [exe, '-p', text, '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits',
                '--setting-sources', 'project,local', '--settings', claude_settings(),
-               '--mcp-config', json.dumps({'mcpServers': {'office': {'command': '/usr/bin/python3', 'args': [MCP, 'claude']}}}),
+               '--mcp-config', json.dumps({'mcpServers': {'office': {'command': '/usr/bin/python3', 'args': [MCP, 'claude'], 'env': {'OFFICE_AGENT_ID': agent}}}}),
                '--allowedTools', *SAFE_BASH]
         if system:
             cmd += ['--append-system-prompt', system]
@@ -81,7 +81,9 @@ def command(kind, text, sid, new_sid=None, fork=False, system='', chat=False):
         return cmd
     if kind == 'codex':
         # approval_policy=never: an office Codex works sandboxed in its own checkout and never stops to ask
-        mcp = ['-c', 'mcp_servers.office.command="/usr/bin/python3"', '-c', 'mcp_servers.office.args=["%s","codex"]' % MCP, '-c', 'mcp_servers.office.default_tools_approval_mode="approve"', '-c', 'approval_policy="never"']
+        # Codex hands MCP servers a clean environment, so the caller's office id goes in explicitly
+        # office Codex runs without the user's hooks (Vibe Island etc.): the office reads its stream directly
+        mcp = ['-c', 'features.hooks=false', '-c', 'mcp_servers.office.env={OFFICE_AGENT_ID="%s"}' % agent, '-c', 'mcp_servers.office.command="/usr/bin/python3"', '-c', 'mcp_servers.office.args=["%s","codex"]' % MCP, '-c', 'mcp_servers.office.default_tools_approval_mode="approve"', '-c', 'approval_policy="never"']
         if sid:
             return [exe, 'exec', 'resume', sid, *mcp, '--json', '--skip-git-repo-check', text]
         first = (system + '\n\n' + text) if system else text     # codex exec has no system-prompt flag
@@ -97,7 +99,7 @@ def chat_command(kind, exe, text, sid, new_sid):
                '--setting-sources', 'project,local', '--allowedTools', 'Read', 'Grep', 'Glob', 'LS', 'WebSearch', 'WebFetch']
         return cmd + (['--resume', sid] if sid else ['--session-id', new_sid] if new_sid else [])
     if kind == 'codex':
-        ro = ['-c', 'approval_policy="never"']
+        ro = ['-c', 'approval_policy="never"', '-c', 'features.hooks=false']
         if sid:
             return [exe, 'exec', 'resume', sid, *ro, '--json', '--skip-git-repo-check', text]
         return [exe, 'exec', *ro, '--json', '--skip-git-repo-check', '--sandbox', 'read-only', text]

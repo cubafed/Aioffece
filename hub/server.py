@@ -14,6 +14,7 @@ import os
 import queue
 import re
 import secrets
+import signal
 import threading
 import time
 import urllib.request
@@ -215,6 +216,8 @@ def handle_hook(src, p):
             set_status(a, 'resting', 'Сессия открыта')
         elif ev == 'UserPromptSubmit' and str(p.get('prompt') or '').lstrip().startswith(('<task-notification', '<system-reminder')):
             set_status(a, 'working')      # background notification, not a new task from the user
+        elif ev == 'UserPromptSubmit' and a.get('managed'):
+            set_status(a, 'working')      # the office already knows the task it sent; the hook sees it with the role prompt glued on
         elif ev == 'UserPromptSubmit':
             a['prompt'] = short(p.get('prompt'), 110)
             a['tasks'] += 1
@@ -368,7 +371,7 @@ def start_run(a, text):
                         'new_sid': new_sid, 'fork': fork, 'system': system, 'cwd': m['path'], 'worktree': m.pop('worktree_of', None),
                         'chat': bool(m.get('chat'))})
     else:
-        cmd = runners.command(a['src'], text, None if new_sid else sid, new_sid, fork=fork, system=system, chat=bool(m.get('chat')))
+        cmd = runners.command(a['src'], text, None if new_sid else sid, new_sid, fork=fork, system=system, chat=bool(m.get('chat')), cwd=m['path'], agent=a['id'])
         env = dict(os.environ, OFFICE_AGENT_ID=a['id'], PATH='/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:' + os.path.expanduser('~/.local/bin'))
         if settings.get('agentProxy'):        # e.g. the VPN's local proxy, for CLIs that ignore macOS VPN routing
             for k in ('HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY', 'https_proxy', 'http_proxy', 'all_proxy'):
@@ -441,6 +444,7 @@ def pump(key, proc):
             add_log(a['name'], 'застрял: процесс упал', 'error')
         elif a['status'] == 'working':
             set_status(a, 'done', 'Готово: ' + (a['prompt'] or 'ответил'))
+        commit_worker(a)
         if (a.get('mission') or {}).get('role') == 'worker' and not run.get('stopped'):
             last = next((m['text'] for m in reversed(a.get('chat') or []) if m['who'] == 'bot'), '')
             lead = agents.get(a['mission'].get('lead') or '')
@@ -451,6 +455,18 @@ def pump(key, proc):
             start_run(a, queue.pop(0))
             RUNS[key]['queue'] = queue
         mark_dirty()
+
+
+def commit_worker(a):
+    m = a.get('managed') or {}
+    if not m.get('branch') or (m.get('host') or LOCAL_HOST) != LOCAL_HOST or not os.path.isdir(m.get('path') or ''):
+        return
+    if not git(m['path'], 'status', '--porcelain').stdout.strip():
+        return
+    git(m['path'], 'add', '-A')
+    r = git(m['path'], '-c', 'user.name=ИИ-Офис · ' + a['name'], '-c', 'user.email=office@localhost', 'commit', '-q', '-m', '%s: %s' % (a['name'], a['prompt'] or 'работа'))
+    if r.returncode == 0:
+        chat_add(a, 'sys', 'Офис закоммитил изменения в ветку ' + m['branch'])
 
 
 def send_to(a, text):
@@ -660,6 +676,73 @@ def team_text(host):
     return '; '.join(team) or 'только ты сам'
 
 
+def git(root, *args):
+    return subprocess.run(['git', '-C', root, *args], capture_output=True, text=True, timeout=60)
+
+
+def review_branches(proj):
+    """Branches of this floor's workers: what the human can review and merge."""
+    return [{'branch': a['managed']['branch'], 'worker': a['name'], 'id': a['id'], 'status': a['status']}
+            for a in agents.values() if a['project'] == proj and a.get('managed') and a['managed'].get('branch')]
+
+
+def review(proj, branch):
+    host, root = place_of(proj)
+    if host != LOCAL_HOST or not root:
+        raise RuntimeError('ревью веток работает для проектов на этом Маке')
+    if branch not in [b['branch'] for b in review_branches(proj)]:
+        raise RuntimeError('нет такой ветки исполнителя')
+    base = git(root, 'rev-parse', '--abbrev-ref', 'HEAD').stdout.strip() or 'main'
+    diff = git(root, 'diff', base + '...' + branch).stdout
+    return {'base': base, 'branch': branch, 'commits': git(root, 'log', '--oneline', '-n', '50', base + '..' + branch).stdout,
+            'stat': git(root, 'diff', '--stat', base + '...' + branch).stdout,
+            'diff': diff[:300000], 'truncated': len(diff) > 300000}
+
+
+def merge_branch(proj, branch):
+    info = review(proj, branch)          # validates project, host and branch
+    root = place_of(proj)[1]
+    if info['base'] == branch:
+        raise RuntimeError('папка проекта сейчас на ветке исполнителя, слияние не имеет смысла')
+    if not info['commits'].strip():
+        raise RuntimeError('в ветке нет изменений, сливать нечего')
+    if any(a['id'] in RUNS for a in agents.values() if a.get('managed') and a['managed'].get('branch') == branch):
+        raise RuntimeError('исполнитель ещё работает, дождись, пока он закончит')
+    r = git(root, 'merge', '--no-ff', branch, '-m', 'Слияние %s из ИИ-Офиса' % branch)
+    if r.returncode != 0:
+        files = git(root, 'diff', '--name-only', '--diff-filter=U').stdout.split()
+        git(root, 'merge', '--abort')
+        raise RuntimeError('конфликт, слияние отменено%s' % ((': ' + ', '.join(files[:8])) if files else ': ' + short(r.stderr or r.stdout, 200)))
+    w = next((a for a in agents.values() if a.get('managed') and a['managed'].get('branch') == branch), None)
+    b = board_of(proj)
+    if w:
+        if w['managed']['path'] != root:
+            git(root, 'worktree', 'remove', '--force', w['managed']['path'])
+        git(root, 'branch', '-d', branch)
+        w['managed'].update(path=root, branch=None)
+        w['cwd'] = root
+        for t in b['tasks']:
+            if t['owner'] == w['name'] and t['status'] in ('review', 'doing'):
+                t['status'] = 'done'
+    room_add(b, 'Ты', 'all', 'Слил ветку %s в %s' % (branch, info['base']))
+    add_log('Ты', 'слил ветку %s' % branch, 'done')
+    lead = agents.get(b['lead'] or '')
+    if lead and lead is not w:
+        deliver(lead, 'Человек слил ветку %s (%s) в %s.' % (branch, w['name'] if w else '?', info['base']), 'Ты')
+
+
+def return_branch(proj, branch, note):
+    review(proj, branch)
+    w = next((a for a in agents.values() if a.get('managed') and a['managed'].get('branch') == branch), None)
+    if not w:
+        raise RuntimeError('исполнитель этой ветки ушёл из офиса')
+    for t in board_of(proj)['tasks']:
+        if t['owner'] == w['name'] and t['status'] == 'review':
+            t['status'] = 'doing'
+    room_add(board_of(proj), 'Ты', w['name'], 'Ревью: ' + note)
+    deliver(w, 'Ревью от человека по твоей ветке %s: %s' % (branch, note), 'Ты')
+
+
 def start_mission(proj, goal, kind='claude'):
     host, path = place_of(proj)
     if not path:
@@ -681,6 +764,8 @@ def start_mission(proj, goal, kind='claude'):
 
 
 def set_place(proj, host, path):
+    if '/.office-worktrees/' in str(path):      # an agent's own checkout is never the project folder
+        return
     p = projects[proj]
     if host == LOCAL_HOST:
         p['path'] = path
@@ -905,7 +990,8 @@ def snapshot():
                 'agents': pub, 'log': log[:40], 'limits': cached_limits(), 'weather': weather, 'briefing': briefing,
                 'boards': {k: {'goal': v['goal'], 'status': v['status'], 'report': v['report'], 'lead': v['lead'],
                                'tasks': [{x: t[x] for x in ('id', 'title', 'status', 'owner', 'note')} for t in v['tasks']],
-                               'room': [{x: m[x] for x in ('from', 'to', 'text', 't')} for m in v['room'][-20:]]}
+                               'room': [{x: m[x] for x in ('from', 'to', 'text', 't')} for m in v['room'][-20:]],
+                               'branches': review_branches(k), 'local': place_of(k)[0] == LOCAL_HOST}
                            for k, v in boards.items() if k in {p['name'] for p in projs}},
                 'kinds': host_kinds(LOCAL_HOST), 'broken': BROKEN, 'localHost': LOCAL_HOST,
                 'hosts': {h: host_kinds(h) for h in [LOCAL_HOST] + [h for h in REMOTE if runner_online(h)]},
@@ -954,7 +1040,7 @@ def broadcaster():
         with lock:
             for q in list(clients):
                 q.put(msg)
-        if time.time() - last_save > 5:
+        if time.time() - last_save > 5 or not dirty.is_set():
             last_save = time.time()
             try:
                 save()
@@ -1032,6 +1118,13 @@ class Handler(BaseHTTPRequestHandler):
                 if not a:
                     return self._json(404, {'error': 'нет такого агента'})
                 return self._json(200, {'id': aid, 'chat': list(a.get('chat') or [])})
+        if path == '/api/review':
+            q = parse_qs(urlparse(self.path).query)
+            try:
+                with lock:
+                    return self._json(200, review((q.get('project') or [''])[0], (q.get('branch') or [''])[0]))
+            except (RuntimeError, OSError, subprocess.SubprocessError) as e:
+                return self._json(400, {'error': str(e)})
         if path == '/api/dirs':
             dirs = [dict(d, host=LOCAL_HOST) for d in runners.scan_dirs()]
             with lock:
@@ -1165,6 +1258,20 @@ class Handler(BaseHTTPRequestHandler):
                 text, err = mcp_call(body)
                 mark_dirty()
             return self._json(200, {'text': text, 'error': err})
+        if url.path in ('/api/merge', '/api/return'):
+            try:
+                with lock:
+                    if url.path == '/api/merge':
+                        merge_branch(str(body.get('project') or ''), str(body.get('branch') or ''))
+                    else:
+                        note = str(body.get('text') or '').strip()
+                        if not note:
+                            return self._json(400, {'error': 'напиши, что поправить'})
+                        return_branch(str(body.get('project') or ''), str(body.get('branch') or ''), note[:2000])
+                    mark_dirty()
+            except (RuntimeError, OSError, subprocess.SubprocessError) as e:
+                return self._json(409, {'error': str(e)})
+            return self._json(200, {'ok': True})
         if url.path in ('/api/mission', '/api/board', '/api/room'):
             proj, text = str(body.get('project') or ''), str(body.get('text') or '').strip()[:2000]
             if not proj or not text:
@@ -1281,6 +1388,12 @@ def main():
     threading.Thread(target=janitor, daemon=True).start()
     threading.Thread(target=ntfy_loop, daemon=True).start()
     threading.Thread(target=weather_loop, daemon=True).start()
+    def stop(*_):                  # launchd restarts send SIGTERM: keep the last changes
+        try:
+            save()
+        finally:
+            os._exit(0)
+    signal.signal(signal.SIGTERM, stop)
     srv = ThreadingHTTPServer((HOST, PORT), Handler)
     srv.daemon_threads = True
     print('ИИ-Офис hub on http://%s:%d' % (HOST, PORT), flush=True)
