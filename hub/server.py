@@ -5,14 +5,17 @@ Receives agent events from Claude Code / Codex hooks (hub/office_hook.py), keeps
 state of every session, serves the office UI and streams state to it over SSE.
 Approvals: a PermissionRequest hook call is held open while someone watches the office,
 so a click on «Одобрить» in the office answers the real permission prompt.
+Cloud agents (Grok Bot) report one status line per step to a private ntfy topic the hub listens to.
 
 Python 3.9 stdlib only (the Mac's /usr/bin/python3).
 """
 import json
 import os
 import queue
+import secrets
 import threading
 import time
+import urllib.request
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -38,7 +41,8 @@ agents = {}       # "src:session" -> agent
 projects = {}     # name -> {name, color, first, last}
 approvals = {}    # id -> {id, agent, decision, live, event}
 log = []          # newest first: [hh:mm, who, text, status]
-settings = {'approveWait': 60}
+settings = {'approveWait': 60, 'ntfyOn': False, 'ntfyTopic': '', 'ntfyServer': 'https://ntfy.sh'}
+ntfy_state = {'state': 'off', 'last': None, 'since': '1h'}
 clients = []      # one queue per open SSE stream
 dirty = threading.Event()
 
@@ -239,6 +243,86 @@ def wait_for_decision(ap):
         return None
 
 
+STATUS_WORDS = {'working': 'working', 'работает': 'working', 'в работе': 'working', 'waiting': 'waiting', 'ждёт': 'waiting',
+                'ждет': 'waiting', 'done': 'done', 'готово': 'done', 'finished': 'done', 'resting': 'resting', 'idle': 'resting',
+                'отдыхает': 'resting', 'error': 'error', 'stuck': 'error', 'застрял': 'error', 'ошибка': 'error'}
+
+
+def parse_status(text):
+    """One status line from a cloud bot: JSON {agent, floor, status, task} or «Имя | Этаж | статус | задача»."""
+    text = (text or '').strip()
+    try:
+        d = json.loads(text)
+        if isinstance(d, dict):
+            return d.get('agent') or d.get('name'), d.get('floor') or d.get('team'), d.get('status'), d.get('task') or ''
+    except ValueError:
+        pass
+    parts = [x.strip() for x in text.split('|')]
+    if len(parts) >= 4:
+        return parts[0], parts[1], parts[2], ' | '.join(parts[3:])
+    if len(parts) == 3:
+        return parts[0], 'Grok', parts[1], parts[2]
+    return None
+
+
+def handle_status_line(text):
+    got = parse_status(text)
+    if not got or not got[0]:
+        return
+    name, floor, status, task = (short(x, 110) for x in got)
+    status = STATUS_WORDS.get(status.lower(), 'working')
+    key = 'grok:' + name.lower()
+    with lock:
+        a = agents.get(key)
+        if a is None:
+            a = new_agent(key, 'grok', name, {'project': floor or 'Grok', 'host': 'Grok Bot'})
+            a['name'] = name
+        elif floor and floor != a['project']:
+            a['project'] = floor
+        ensure_project(a['project'])
+        a['last'] = time.time()
+        a['events'] += 1
+        if status == 'working' and task and task != a['task']:
+            a['steps'] += 1
+            a['hist'][-1] += 1
+        if a['status'] != status:
+            add_log(a['name'], {'working': 'работает: ', 'waiting': 'ждёт тебя: ', 'done': 'готово: ', 'error': 'застрял: '}.get(status, 'отдыхает: ') + task, status)
+            if status == 'working':
+                a['tasks'] += 1
+        set_status(a, status, task or a['task'])
+        mark_dirty()
+
+
+def ntfy_loop():
+    """Follow the private ntfy topic (outbound long-poll, so it works behind NAT/VPN)."""
+    while True:
+        with lock:
+            on, topic, server = settings['ntfyOn'], settings['ntfyTopic'], settings['ntfyServer'].rstrip('/')
+        if not on or not topic:
+            ntfy_state['state'] = 'off'
+            time.sleep(3)
+            continue
+        url = '%s/%s/json?since=%s' % (server, topic, ntfy_state['since'])
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'ai-office-hub'})
+            with urllib.request.urlopen(req, timeout=90) as r:     # ntfy sends a keepalive every ~45 s
+                ntfy_state['state'] = 'connected'
+                mark_dirty()
+                for line in r:
+                    msg = json.loads(line)
+                    if msg.get('event') == 'message':
+                        ntfy_state['since'] = msg.get('id') or ntfy_state['since']
+                        ntfy_state['last'] = msg.get('time')
+                        handle_status_line(msg.get('message'))
+                    with lock:
+                        if not settings['ntfyOn'] or settings['ntfyTopic'] != topic:
+                            break
+        except Exception as e:  # network down, VPN off, server error: retry
+            ntfy_state['state'] = 'error: ' + short(e, 80)
+            mark_dirty()
+            time.sleep(10)
+
+
 _integr = {'at': 0, 'val': {}}
 
 
@@ -269,7 +353,10 @@ def snapshot():
                         'approval': ap['id'] if ap and ap['live'] and not ap['decision'] else None,
                         'where': (a['host'] + ' · ' if a['host'] else '') + a['cwd'].replace(os.path.expanduser('~'), '~')})
         pub.sort(key=lambda x: x['name'])
-        return {'now': time.time(), 'viewers': len(clients), 'settings': dict(settings), 'integrations': integrations(),
+        ntfy = {'on': settings['ntfyOn'], 'state': ntfy_state['state'], 'last': ntfy_state['last'],
+                'url': settings['ntfyServer'].rstrip('/') + '/' + settings['ntfyTopic'] if settings['ntfyTopic'] else ''}
+        return {'now': time.time(), 'viewers': len(clients), 'settings': {'approveWait': settings['approveWait']},
+                'integrations': integrations(), 'ntfy': ntfy,
                 'projects': [{'name': p['name'], 'color': p['color']} for p in projs], 'agents': pub, 'log': log[:40]}
 
 
@@ -443,6 +530,14 @@ class Handler(BaseHTTPRequestHandler):
                 settings['approveWait'] = w
             mark_dirty()
             return self._json(200, {'ok': True})
+        if url.path == '/api/ntfy':
+            with lock:
+                settings['ntfyOn'] = bool(body.get('on'))
+                if settings['ntfyOn'] and (not settings['ntfyTopic'] or body.get('newTopic')):
+                    settings['ntfyTopic'] = 'ai-office-' + secrets.token_hex(12)
+                    ntfy_state['since'] = '1h'
+            mark_dirty()
+            return self._json(200, {'ok': True})
         if url.path == '/api/forget':
             with lock:
                 a = agents.pop(str(body.get('id') or ''), None)
@@ -458,6 +553,7 @@ def main():
     load()
     threading.Thread(target=broadcaster, daemon=True).start()
     threading.Thread(target=janitor, daemon=True).start()
+    threading.Thread(target=ntfy_loop, daemon=True).start()
     srv = ThreadingHTTPServer((HOST, PORT), Handler)
     srv.daemon_threads = True
     print('ИИ-Офис hub on http://%s:%d' % (HOST, PORT), flush=True)

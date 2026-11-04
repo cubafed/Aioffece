@@ -751,7 +751,7 @@ function renderConnect() {
 }
 
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-approve],[data-deny],[data-chat],[data-floor],[data-home],[data-sel],[data-wake],[data-pause],[data-closechat],[data-closeconn],[data-unsel],[data-ping],[data-q],[data-routine],[data-forget],[data-wait]'); if (!t) return;
+  const t = e.target.closest('[data-approve],[data-deny],[data-chat],[data-floor],[data-home],[data-sel],[data-wake],[data-pause],[data-closechat],[data-closeconn],[data-unsel],[data-ping],[data-q],[data-routine],[data-forget],[data-wait],[data-ntfy],[data-copyprompt]'); if (!t) return;
   const d = t.dataset;
   if (d.closeconn) { if (e.target === t || t.tagName === 'BUTTON') $('connectWrap').innerHTML = ''; return; }
   if (d.approve) approve(d.approve);
@@ -760,6 +760,9 @@ document.addEventListener('click', (e) => {
   else if (d.closechat) { S.chat = null; renderChat(); }
   else if (d.forget) { api('/api/forget', { id: d.forget }).catch(e => { log('Офис', e.message, 'error'); renderUI(); }); S.sel = null; }
   else if (d.wait !== undefined) { api('/api/settings', { approveWait: +d.wait }).then(() => { S.hub.settings.approveWait = +d.wait; renderConnect(); }).catch(e => { log('Офис', e.message, 'error'); renderUI(); }); }
+  else if (d.ntfy) { api('/api/ntfy', { on: d.ntfy !== 'off', newTopic: d.ntfy === 'new' }).then(() => api('/api/state')).then(st => { S.hub = st; renderConnect(); }).catch(e => { log('Офис', e.message, 'error'); renderUI(); }); }
+  else if (d.copyprompt) { const ta = $('grokPrompt'); const done = () => { t.textContent = 'Скопировано'; };
+    (navigator.clipboard ? navigator.clipboard.writeText(ta.value) : Promise.reject()).then(done, () => { ta.select(); try { document.execCommand('copy'); done(); } catch (e) {} }); }
   else if (d.unsel) { S.sel = null; renderUI(); }
   else if (d.ping) { const a = byId(d.ping); log(a.name, 'на связи, ответил за 1 с', a.status); renderUI(); }
   else if (d.routine) { const r = ROUTINES[+d.routine]; r.on = !r.on; log('Ты', (r.on ? 'включил' : 'выключил') + ' рутину «' + r.name + '»', 'resting'); renderUI(); }
@@ -883,11 +886,27 @@ function detailActs(a) {
 }
 function renderConnectLive() {
   const it = S.hub.integrations || {}, w = S.hub.settings.approveWait;
-  const rows = [['claude', 'Claude Code', 'Хуки: задача, инструменты, разрешения, конец хода', it.claude], ['codex', 'Codex', 'Хуки Codex: те же события', it.codex], ['grok', 'Grok', 'Пока не подключён', false], ['gemini', 'Gemini · Antigravity', 'agy, агент в Gemini.app, IDE: задача, инструменты, конец хода. Разрешения — в самом Antigravity', it.gemini]];
+  const nt = S.hub.ntfy || {};
+  const rows = [['claude', 'Claude Code', 'Хуки: задача, инструменты, разрешения, конец хода', it.claude], ['codex', 'Codex', 'Хуки Codex: те же события', it.codex], ['grok', 'Grok Bot', nt.on ? 'Канал ntfy: ' + (nt.state === 'connected' ? 'на связи' : nt.state) + (nt.last ? ' · последний статус ' + new Date(nt.last * 1000).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }) : ' · статусов ещё не было') : 'Боты шлют строчку статуса в приватный канал ntfy, офис её читает', nt.on && nt.state === 'connected'], ['gemini', 'Gemini · Antigravity', 'agy, агент в Gemini.app, IDE: задача, инструменты, конец хода. Разрешения — в самом Antigravity', it.gemini]];
   $('connectWrap').innerHTML = `<div class="scrim" data-closeconn="1"><div class="card modal" role="dialog" aria-modal="true" aria-labelledby="cTitle"><h2 id="cTitle">Подключённые ИИ</h2><p class="muted" style="margin:0 0 10px">Агенты шлют события в хаб на этом Маке через хуки.</p>
   ${rows.map(([k, n, d, on]) => `<div class="int"><span class="ava" style="background:${KIND[k].color}"><i></i></span><div class="tx"><b>${n}</b><small>${d}</small></div><span class="${on ? 'pill-ok' : 'badge'}">${on ? 'подключён' : 'нет'}</span></div>`).join('')}
+  ${grokSetup(nt)}
   <div class="int" style="flex-wrap:wrap"><div class="tx" style="min-width:200px"><b>Ждать решения из офиса</b><small>Пока офис открыт, запрос разрешения ждёт клика здесь, потом уходит в терминал и Vibe Island</small></div><div style="display:flex;gap:4px">${[0, 30, 60, 120].map(x => `<button class="btn ${x === w ? '' : 'ghost'}" data-wait="${x}">${x ? x + ' с' : 'нет'}</button>`).join('')}</div></div>
   <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" data-closeconn="1">Готово</button></div></div></div>`;
+}
+function grokPrompt(url) {
+  return `Настрой отчёты для ИИ-Офиса. Добавь всем ботам команды общее правило:
+после каждого значимого шага (взял задачу, ждёт моего решения, закончил, ошибка) отправляй ОДНУ строку статуса POST-запросом на ${url}
+Формат строки: Имя бота | Этаж | статус | что делаешь (до 100 символов)
+Этаж — команда или проект бота. Статус — одно из: working, waiting, done, resting, error.
+Пример: curl -d "Trend Scout | Research | working | Сканирую X на тренды ИИ" ${url}
+Канал приватный: кроме строк статуса туда ничего не пиши. Сразу после настройки каждый бот шлёт строку со статусом resting.`;
+}
+function grokSetup(nt) {
+  if (!nt.on) return `<div class="int"><div class="tx"><b>Подключить Grok Bot</b><small>Хаб начнёт слушать приватный канал на ntfy.sh. В канал попадают только строки статуса, которые пишут сами боты.</small></div><button class="btn" data-ntfy="on">Подключить</button></div>`;
+  return `<div class="int" style="display:block"><b>Промпт для Grok Bot</b><small class="muted" style="display:block;margin:2px 0 6px">Вставь его боту-менеджеру в Grok Bot. Ссылку на канал никому не показывай: кто её знает, может писать в офис статусы.</small>
+    <label class="sr" for="grokPrompt">Промпт для Grok Bot</label><textarea id="grokPrompt" readonly rows="7" style="width:100%;box-sizing:border-box;font:12px/1.4 ui-monospace,monospace;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--chip);color:var(--ink);resize:vertical">${esc(grokPrompt(nt.url))}</textarea>
+    <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><button class="btn" data-copyprompt="1">Скопировать</button><button class="btn ghost" data-ntfy="new">Новый канал</button><button class="btn ghost" data-ntfy="off">Отключить</button></div></div>`;
 }
 async function api(path, body) {
   const r = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Office': '1' }, body: JSON.stringify(body) } : { cache: 'no-store' });
