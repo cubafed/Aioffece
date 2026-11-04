@@ -27,6 +27,7 @@ from urllib.parse import parse_qs, urlparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import limits                                   # noqa: E402
 import runners                                  # noqa: E402
+import usage                                    # noqa: E402
 from office_hook import project_of, root_of     # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -54,7 +55,7 @@ agents = {}       # "src:session" -> agent
 projects = {}     # name -> {name, color, first, last}
 approvals = {}    # id -> {id, agent, decision, live, event}
 log = []          # newest first: [hh:mm, who, text, status]
-settings = {'approveWait': 60, 'agentProxy': '', 'ntfyOn': False, 'ntfyTopic': '', 'ntfyServer': 'https://ntfy.sh'}
+settings = {'approveWait': 60, 'budget': 90, 'agentProxy': '', 'ntfyOn': False, 'ntfyTopic': '', 'ntfyServer': 'https://ntfy.sh'}
 ntfy_state = {'state': 'off', 'last': None, 'since': '1h'}
 weather = {}      # Moscow, from open-meteo: temp, code, day
 briefing = {}     # morning summary: text, day
@@ -535,6 +536,12 @@ def deliver(t, text, sender):
     if not t.get('managed'):
         return
     b = board_of(t['project'])
+    lim = cached_limits().get(LOOK.get(t['src'], t['src'])) or {}
+    used = max((lim.get('five') or {}).get('pct') or 0, (lim.get('week') or {}).get('pct') or 0)
+    if settings.get('budget', 90) < 100 and used >= settings.get('budget', 90):
+        room_add(b, 'Офис', 'человек', 'Пауза: лимит %s %d%% (бюджет %d%%). %s не стал будить %s.' % (lim.get('label', t['src']), used, settings['budget'], sender, t['name']))
+        add_log('Офис', 'пауза по бюджету: ' + t['name'], 'waiting')
+        return
     b['wakes'] += 1
     if b['wakes'] > MAX_WAKES:
         if b['wakes'] == MAX_WAKES + 1:
@@ -785,6 +792,7 @@ def place_of(proj):
 
 
 _limits = {'at': 0, 'val': {}}
+_usage = {'at': 0, 'val': {}}
 
 
 def cached_limits():
@@ -983,7 +991,7 @@ def snapshot():
         pub.sort(key=lambda x: x['name'])
         ntfy = {'on': settings['ntfyOn'], 'state': ntfy_state['state'], 'last': ntfy_state['last'],
                 'url': settings['ntfyServer'].rstrip('/') + '/' + settings['ntfyTopic'] if settings['ntfyTopic'] else ''}
-        return {'now': time.time(), 'viewers': len(clients), 'settings': {'approveWait': settings['approveWait'], 'agentProxy': settings['agentProxy']},
+        return {'now': time.time(), 'viewers': len(clients), 'settings': {'approveWait': settings['approveWait'], 'agentProxy': settings['agentProxy'], 'budget': settings.get('budget', 90)},
                 'integrations': integrations(), 'ntfy': ntfy,
                 'projects': [{'name': p['name'], 'color': p['color'], 'path': p.get('path') or (p.get('remote') or {}).get('path', ''),
                               'host': LOCAL_HOST if p.get('path') else (p.get('remote') or {}).get('host', '')} for p in projs],
@@ -1125,6 +1133,16 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json(200, review((q.get('project') or [''])[0], (q.get('branch') or [''])[0]))
             except (RuntimeError, OSError, subprocess.SubprocessError) as e:
                 return self._json(400, {'error': str(e)})
+        if path == '/api/usage':
+            if time.time() - _usage['at'] > 300:
+                try:
+                    _usage.update(val=usage.scan(), at=time.time())
+                except Exception as e:
+                    print('usage failed:', e, flush=True)
+            with lock:
+                parts = {LOCAL_HOST: _usage['val']}
+                parts.update({h: rn.get('usage') for h, rn in REMOTE.items() if rn.get('usage')})
+            return self._json(200, {'total': usage.merge(*parts.values()), 'hosts': list(parts)})
         if path == '/api/dirs':
             dirs = [dict(d, host=LOCAL_HOST) for d in runners.scan_dirs()]
             with lock:
@@ -1194,6 +1212,26 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(400, {'error': 'decision must be allow or deny'})
             ok = decide(str(body.get('id') or ''), body['decision'])
             return self._json(200 if ok else 409, {'ok': ok} if ok else {'error': 'Это разрешение уже решено в терминале или Vibe Island'})
+        if url.path == '/api/settings' and 'budget' in body:
+            if body['budget'] not in (70, 80, 90, 100):
+                return self._json(400, {'error': 'бюджет: 70, 80, 90 или 100'})
+            with lock:
+                settings['budget'] = body['budget']
+            mark_dirty()
+            return self._json(200, {'ok': True})
+        if url.path == '/api/stopall':
+            with lock:
+                n = 0
+                for run in RUNS.values():
+                    if run['proc'].poll() is None:
+                        run['stopped'] = True
+                        run['proc'].terminate()
+                        n += 1
+                for b in boards.values():
+                    b['wakes'] = MAX_WAKES + 1          # missions wait for a human message
+                add_log('Ты', 'остановил всех агентов офиса (%d)' % n, 'resting')
+                mark_dirty()
+            return self._json(200, {'stopped': n})
         if url.path == '/api/settings' and 'agentProxy' in body:
             px = str(body.get('agentProxy') or '').strip()
             if px and not px.startswith(('http://127.0.0.1:', 'socks5://127.0.0.1:', 'http://localhost:')):
@@ -1226,6 +1264,8 @@ class Handler(BaseHTTPRequestHandler):
                 rn = REMOTE.setdefault(host, {'jobs': queue.Queue()})
                 fresh = not runner_online(host)
                 rn.update(last=time.time(), kinds=[k for k in body.get('kinds') or [] if k in KINDS], dirs=(body.get('dirs') or [])[:80])
+                if isinstance(body.get('usage'), dict):
+                    rn['usage'] = body['usage']
                 if fresh:
                     add_log('Офис', 'на связи исполнитель на ' + host, 'done')
                     mark_dirty()

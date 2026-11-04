@@ -15,6 +15,7 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import runners  # noqa: E402
+import usage    # noqa: E402
 
 URL = os.environ.get('AI_OFFICE_URL', 'http://127.0.0.1:4747')
 HOST = os.uname().nodename.split('.')[0]
@@ -75,12 +76,18 @@ def run_job(job):
 def main():
     kinds = [k for k in runners.KINDS_RUNNABLE if runners.binary(k)]
     print('ИИ-Офис runner on %s: %s → %s' % (HOST, ', '.join(kinds), URL), flush=True)
-    dirs, dirs_at = [], 0
+    dirs, dirs_at, used, used_at = [], 0, None, 0
     while True:
         if time.time() - dirs_at > 300:
             dirs, dirs_at = runners.scan_dirs(), time.time()
+        if time.time() - used_at > 600:          # token usage from this box's agent logs, for the office history
+            try:
+                used = usage.scan()
+            except Exception as e:
+                print('usage failed:', e, flush=True)
+            used_at = time.time()
         try:
-            out = post('/api/runner/poll', {'host': HOST, 'kinds': kinds, 'dirs': dirs}, timeout=35)
+            out = post('/api/runner/poll', {'host': HOST, 'kinds': kinds, 'dirs': dirs, 'usage': used}, timeout=35)
         except Exception as e:        # tunnel down or hub restarting
             print('poll failed:', e, flush=True)
             time.sleep(5)

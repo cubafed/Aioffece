@@ -322,7 +322,7 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
   <button class="btn" type="submit">Отправить</button>
 </form>
 
-<section class="card limits" id="limitsCard" aria-label="Лимиты"><div class="sec-h" style="padding:0 0 4px"><p class="cap">Лимиты</p><span class="muted" style="font-size:11px" id="limNote"></span></div><div id="limList"></div></section>
+<section class="card limits" id="limitsCard" aria-label="Лимиты"><div class="sec-h" style="padding:0 0 4px;gap:6px"><p class="cap" style="flex:1">Лимиты <span class="muted" style="font-size:10px;font-weight:500;letter-spacing:0;text-transform:none" id="limNote"></span></p><button class="btn ghost" id="usageBtn" style="min-height:24px;padding:2px 8px;font-size:11px">История</button><button class="btn ghost" id="stopAllBtn" style="min-height:24px;padding:2px 8px;font-size:11px;color:var(--err)">Стоп всем</button></div><div id="limList"></div></section>
 
 <div class="card ctl" role="group" aria-label="Камера">
   <button id="rotL" aria-label="Повернуть влево"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
@@ -848,7 +848,7 @@ function renderConnect() {
 }
 
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-approve],[data-deny],[data-chat],[data-floor],[data-home],[data-sel],[data-wake],[data-pause],[data-closechat],[data-closeconn],[data-unsel],[data-ping],[data-q],[data-routine],[data-forget],[data-wait],[data-ntfy],[data-copyprompt],[data-stop],[data-fork],[data-kind],[data-closehire],[data-mission],[data-briefclose],[data-conv],[data-cmodel],[data-closechats],[data-newchat],[data-review]'); if (!t) return;
+  const t = e.target.closest('[data-approve],[data-deny],[data-chat],[data-floor],[data-home],[data-sel],[data-wake],[data-pause],[data-closechat],[data-closeconn],[data-unsel],[data-ping],[data-q],[data-routine],[data-forget],[data-wait],[data-ntfy],[data-copyprompt],[data-stop],[data-fork],[data-kind],[data-closehire],[data-mission],[data-briefclose],[data-conv],[data-cmodel],[data-closechats],[data-newchat],[data-review],[data-budget]'); if (!t) return;
   const d = t.dataset;
   if (d.closeconn) { if (e.target === t || t.tagName === 'BUTTON') $('connectWrap').innerHTML = ''; return; }
   if (d.approve) approve(d.approve);
@@ -859,6 +859,7 @@ document.addEventListener('click', (e) => {
   else if (d.kind) { S.hireKind = d.kind; renderHire(); }
   else if (d.mission) openMission(d.mission);
   else if (d.review) openReview(d.review);
+  else if (d.budget) api('/api/settings', { budget: +d.budget }).then(() => { S.hub.settings.budget = +d.budget; renderConnect(); }).catch(toastErr);
   else if (d.conv) { S.chatsSel = d.conv; S.chatsMsgs = null; S.chatsLen = -1; renderChats(); loadConv(d.conv); }
   else if (d.newchat) { S.chatsSel = null; renderChats(); }
   else if (d.cmodel) { S.chatsModel = d.cmodel; renderChats(); }
@@ -890,6 +891,12 @@ $('tBoard').onclick = () => { S.tab = 'board'; renderUI(); };
 $('finToggle').onclick = () => { S.finOpen = !S.finOpen; $('finToggle').setAttribute('aria-expanded', String(S.finOpen)); $('finToggle').style.transform = S.finOpen ? '' : 'rotate(180deg)'; renderUI(); };
 $('connectBtn').onclick = renderConnect;
 $('hireBtn').onclick = () => openHire('');
+$('usageBtn').onclick = () => openUsage();
+$('stopAllBtn').onclick = () => {
+  if (!S.stopArm) { S.stopArm = true; $('stopAllBtn').textContent = 'Точно остановить?'; setTimeout(() => { S.stopArm = false; $('stopAllBtn').textContent = 'Стоп всем'; }, 4000); return; }
+  S.stopArm = false; $('stopAllBtn').textContent = 'Стоп всем';
+  api('/api/stopall', {}).then(j => log('Ты', 'остановлено агентов: ' + j.stopped, 'resting')).catch(toastErr);
+};
 $('chatsBtn').onclick = () => { S.chatsOpen = !S.chatsOpen; if (S.chatsOpen && !S.hireDirs) api('/api/dirs').then(j => { S.hireDirs = j.dirs; renderChats(); }).catch(toastErr); renderChats(); };
 $('darkBtn').onclick = () => { S.dark = !S.dark; store.set('office-dark', S.dark ? '1' : '0'); applyDark(); };
 $('home').onclick = closeFloor;
@@ -1092,6 +1099,7 @@ function renderLimits() {
     return `<div class="lim ${v.stale ? 'stale' : ''}"><span class="nm"><i class="dot" style="background:${KIND[k] ? KIND[k].color : '#999'}"></i>${esc(v.label)}<small>${esc(reset)}</small></span>${bar(v.five, k, '5 ч')}${bar(v.week, k, 'неделя')}${bar(v.month, k, 'месяц')}</div>`; }).join('')
     : '<p class="muted" style="margin:4px 0">Нет данных о лимитах</p>';
   $('limNote').textContent = S.live ? 'из Vibe Island' : 'демо';
+  $('usageBtn').hidden = $('stopAllBtn').hidden = !S.live;
 }
 const TASK_RU = { todo: 'План', doing: 'В работе', review: 'Ревью', done: 'Готово', blocked: 'Застряло' };
 function boardHtml(f) {
@@ -1278,6 +1286,30 @@ function renderChats(soft) {
     if (cur) api('/api/send', { id: cur.id, text: v }).then(() => loadConv(cur.id)).catch(toastErr);
     else api('/api/chatnew', { kind: S.chatsModel, host, path: ($('convScope') || {}).value || '', text: v }).then(j => { S.chatsSel = j.id; S.chatsMsgs = []; S.chatsLen = 0; renderChats(); loadConv(j.id); }).catch(toastErr); };
 }
+const fmtTok = (n) => n >= 1e6 ? (n / 1e6).toFixed(1).replace('.0', '') + ' млн' : n >= 1e3 ? Math.round(n / 1e3) + ' тыс' : String(n);
+function openUsage() {
+  $('hireWrap').innerHTML = '<div class="scrim" data-closehire="1"><div class="card modal wide"><p class="muted">Считаю токены по журналам агентов…</p></div></div>';
+  api('/api/usage').then(u => {
+    const T = u.total, days = [];
+    for (let i = 13; i >= 0; i--) { const d = new Date(Date.now() - i * 864e5); days.push(d.toISOString().slice(0, 10)); }
+    const C = T.claude || {}, X = T.codex || {}, max = Math.max(1, ...days.map(d => (C[d] || 0) + (X[d] || 0)));
+    const W = 820, Hh = 200, L = 52, bw = (W - L - 10) / 14;
+    const bars = days.map((d, i) => { const c = (C[d] || 0) / max * Hh, x = (X[d] || 0) / max * Hh, px = L + i * bw + 4;
+      return `<rect x="${px}" y="${20 + Hh - c}" width="${bw - 8}" height="${c}" fill="${KIND.claude.color}" rx="2"><title>${d}: Claude ${fmtTok(C[d] || 0)}</title></rect>
+              <rect x="${px}" y="${20 + Hh - c - x}" width="${bw - 8}" height="${x}" fill="${KIND.codex.color}" rx="2"><title>${d}: GPT ${fmtTok(X[d] || 0)}</title></rect>
+              <text x="${px + (bw - 8) / 2}" y="${Hh + 36}" text-anchor="middle" font-size="10" fill="currentColor">${+d.slice(8)}</text>`; }).join('');
+    const grid = [0, 0.5, 1].map(k => `<line x1="${L}" x2="${W - 6}" y1="${20 + Hh - k * Hh}" y2="${20 + Hh - k * Hh}" stroke="currentColor" stroke-opacity=".15"/><text x="${L - 6}" y="${24 + Hh - k * Hh}" text-anchor="end" font-size="10" fill="currentColor">${fmtTok(Math.round(max * k))}</text>`).join('');
+    const sum = (o) => days.reduce((s, d) => s + (o[d] || 0), 0);
+    const projs = Object.entries(T.projects || {}).sort((a, b) => b[1] - a[1]).slice(0, 8), pmax = Math.max(1, ...projs.map(p => p[1]));
+    $('hireWrap').innerHTML = `<div class="scrim" data-closehire="1"><div class="card modal wide hire" role="dialog" aria-modal="true" aria-labelledby="uTitle"><h2 id="uTitle">Расход токенов за 14 дней</h2>
+      <p class="muted" style="margin:0 0 6px">Посчитано по журналам Claude Code и Codex на машинах: ${u.hosts.map(esc).join(', ')}. Токены = ввод + вывод + запись кэша.</p>
+      <div style="display:flex;gap:16px;font-size:13px;margin:4px 0"><span><i class="dot" style="background:${KIND.claude.color}"></i> Claude — ${fmtTok(sum(C))}</span><span><i class="dot" style="background:${KIND.codex.color}"></i> GPT · Codex — ${fmtTok(sum(X))}</span></div>
+      <div style="overflow-x:auto;color:var(--muted)"><svg viewBox="0 0 ${W} ${Hh + 44}" width="100%" style="min-width:560px" role="img" aria-label="Токены по дням">${grid}${bars}</svg></div>
+      <p class="cap" style="margin-top:8px">По проектам</p>
+      ${projs.map(([n, v]) => `<div class="use" style="padding:4px 0"><div class="r"><span>${esc(n)}</span><span class="muted">${fmtTok(v)}</span></div><div class="bar"><i style="width:${v / pmax * 100}%;background:var(--ink);opacity:.55"></i></div></div>`).join('') || '<p class="muted">Нет данных</p>'}
+      <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" data-closehire="1">Закрыть</button></div></div></div>`;
+  }).catch(e => { $('hireWrap').innerHTML = ''; toastErr(e); });
+}
 function renderConnectLive() {
   const it = S.hub.integrations || {}, w = S.hub.settings.approveWait;
   const nt = S.hub.ntfy || {};
@@ -1285,6 +1317,7 @@ function renderConnectLive() {
   $('connectWrap').innerHTML = `<div class="scrim" data-closeconn="1"><div class="card modal" role="dialog" aria-modal="true" aria-labelledby="cTitle"><h2 id="cTitle">Подключённые ИИ</h2><p class="muted" style="margin:0 0 10px">Агенты шлют события в хаб на этом Маке через хуки.</p>
   ${rows.map(([k, n, d, on]) => `<div class="int"><span class="ava" style="background:${KIND[k].color}"><i></i></span><div class="tx"><b>${n}</b><small>${d}</small></div><span class="${on ? 'pill-ok' : 'badge'}">${on ? 'подключён' : 'нет'}</span></div>`).join('')}
   ${grokSetup(nt)}
+  <div class="int" style="flex-wrap:wrap"><div class="tx" style="min-width:200px"><b>Бюджет миссий</b><small>Когда лимит модели выше этого порога, агенты перестают будить друг друга и ждут тебя</small></div><div style="display:flex;gap:4px">${[70, 80, 90, 100].map(x => `<button class="btn ${x === S.hub.settings.budget ? '' : 'ghost'}" data-budget="${x}">${x === 100 ? 'без лимита' : x + '%'}</button>`).join('')}</div></div>
   <div class="int" style="flex-wrap:wrap"><div class="tx" style="min-width:200px"><b>Ждать решения из офиса</b><small>Пока офис открыт, запрос разрешения ждёт клика здесь, потом уходит в терминал и Vibe Island</small></div><div style="display:flex;gap:4px">${[0, 30, 60, 120].map(x => `<button class="btn ${x === w ? '' : 'ghost'}" data-wait="${x}">${x ? x + ' с' : 'нет'}</button>`).join('')}</div></div>
   <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" data-closeconn="1">Готово</button></div></div></div>`;
 }
