@@ -675,6 +675,7 @@ function openChat(id) { const a = byId(id); if (!a) return; a.chat = a.chat || [
 const ST = { working: 'Работает', waiting: 'Ждёт тебя', done: 'Готово', resting: 'Отдыхает', error: 'Застрял' };
 const ava = (a, cls) => `<span class="ava ${cls || ''}" style="background:${KIND[a.kind].color};--c:${KIND[a.kind].color}" aria-hidden="true"><i></i></span>`;
 function renderUI() {
+  $('floorsN').textContent = FLOORS.length;
   $('tUse').hidden = S.live && !S.open; if ($('tUse').hidden && S.tab === 'use') S.tab = 'team';
   const all = ALL(), c = s => all.filter(a => a.status === s).length;
   $('counts').innerHTML = `<span><i class="dot s-working"></i><b>${c('working')}</b><span class="t muted" style="padding:0">работают</span></span><span class="${c('waiting') ? 'hl' : ''}"><i class="dot s-waiting"></i><b>${c('waiting')}</b><span class="t" style="padding:0">ждут</span></span><span><i class="dot s-error"></i><b>${c('error')}</b><span class="t muted" style="padding:0">застряли</span></span><span><i class="dot s-resting"></i><b>${c('resting')}</b><span class="t muted" style="padding:0">отдыхают</span></span>`;
