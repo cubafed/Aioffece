@@ -61,10 +61,12 @@ def claude_settings():
         {'type': 'command', 'command': '/usr/bin/python3 %s claude' % HOOK, 'timeout': 900}]}]}})
 
 
-def command(kind, text, sid, new_sid=None, fork=False, system=''):
+def command(kind, text, sid, new_sid=None, fork=False, system='', chat=False):
     exe = binary(kind)
     if not exe:
         raise RuntimeError('%s не установлен на этом Маке' % kind)
+    if chat:
+        return chat_command(kind, exe, text, sid, new_sid)
     if kind == 'claude':
         cmd = [exe, '-p', text, '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits',
                '--setting-sources', 'project,local', '--settings', claude_settings(),
@@ -86,6 +88,20 @@ def command(kind, text, sid, new_sid=None, fork=False, system=''):
         return [exe, 'exec', *mcp, '--json', '--skip-git-repo-check', '--sandbox', 'workspace-write', first]
     cmd = [exe, '-p', text, '--output-format', 'stream-json', '--mode', 'accept-edits']
     return cmd + (['--conversation', sid] if sid else [])
+
+
+def chat_command(kind, exe, text, sid, new_sid):
+    """Plain conversation: the model may read the project folder but never edits or runs anything."""
+    if kind == 'claude':
+        cmd = [exe, '-p', text, '--output-format', 'stream-json', '--verbose', '--permission-mode', 'dontAsk',
+               '--setting-sources', 'project,local', '--allowedTools', 'Read', 'Grep', 'Glob', 'LS', 'WebSearch', 'WebFetch']
+        return cmd + (['--resume', sid] if sid else ['--session-id', new_sid] if new_sid else [])
+    if kind == 'codex':
+        ro = ['-c', 'approval_policy="never"']
+        if sid:
+            return [exe, 'exec', 'resume', sid, *ro, '--json', '--skip-git-repo-check', text]
+        return [exe, 'exec', *ro, '--json', '--skip-git-repo-check', '--sandbox', 'read-only', text]
+    return [exe, '-p', text, '--output-format', 'stream-json', '--mode', 'plan'] + (['--conversation', sid] if sid else [])
 
 
 def _blocks(content):

@@ -44,13 +44,15 @@ def run_job(job):
     rc = 1
     try:
         cwd = os.path.realpath(os.path.expanduser(job['cwd']))
+        if job.get('chat') and cwd == os.path.join(HOME, '.ai-office-chats'):
+            os.makedirs(cwd, exist_ok=True)       # scratch folder for chats without a project
         if not cwd.startswith(HOME + os.sep) or not os.path.isdir(cwd):
             raise RuntimeError('на %s нет папки %s' % (HOST, job['cwd']))
         if job.get('worktree'):
             cwd, branch = runners.make_worktree(cwd, job['agent'])
             post('/api/runner/lines', {'job': jid, 'lines': [], 'meta': {'cwd': cwd, 'branch': branch}})
         cmd = runners.command(job['kind'], job['text'], job.get('sid'), job.get('new_sid'), fork=bool(job.get('fork')),
-                              system=job.get('system') or '')
+                              system=job.get('system') or '', chat=bool(job.get('chat')))
         env = dict(os.environ, OFFICE_AGENT_ID=job['agent'], AI_OFFICE_URL=URL,
                    PATH=os.path.expanduser('~/.local/bin') + ':/usr/local/bin:/usr/bin:/bin')
         p = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)

@@ -40,6 +40,8 @@ NAMES = {'claude': 'Клод', 'codex': 'Кодекс', 'grok': 'Грок', 'gem
 LOOK = {'antigravity': 'gemini'}   # which character the office draws for a source
 LOCAL_HOST = os.uname().nodename.split('.')[0]
 KINDS = ('claude', 'codex', 'antigravity')   # agents the office can run itself
+CHAT_PROJECT = 'Чаты'                         # plain conversations live here, not on a floor
+MODEL_RU = {'claude': 'Claude', 'codex': 'GPT', 'antigravity': 'Gemini'}
 PALETTE = ['#22a55b', '#8b5cf6', '#f08c1a', '#3b82f6', '#14b8a6', '#e5484d', '#d946ef', '#0ea5e9', '#84cc16', '#f59e0b']
 HIST_LEN, HIST_STEP = 14, 300          # activity sparkline: 14 buckets of 5 minutes
 IDLE_AFTER, FORGET_AFTER = 15 * 60, 12 * 3600
@@ -58,7 +60,8 @@ briefing = {}     # morning summary: text, day
 clients = []      # one queue per open SSE stream
 ALIAS = {}        # "src:session" of an office-run CLI session -> its office agent id
 RUNS = {}         # office agent id -> {proc, queue, stopped}
-BROKEN = {}       # kind -> why the last run could not start (e.g. not logged in on this Mac)
+BROKEN = {}       # "host:kind" -> why runs there cannot start (not logged in, region) — remembered across restarts
+AUTH_FAIL = ('Not logged in', 'Please run /login', 'Authentication required', 'not eligible', 'not currently available in your location')
 REMOTE = {}       # host -> {last, kinds, dirs, jobs: Queue} — runners on other machines (hub/runner.py)
 RJOBS = {}        # job id -> RemoteProc
 boards = {}       # project -> {goal, status, report, lead, tasks, room, seq, wakes}
@@ -338,9 +341,11 @@ def runner_online(host):
 
 def host_kinds(host):
     if host == LOCAL_HOST:
-        return [k for k in KINDS if runners.binary(k) and k not in BROKEN]
-    rn = runner_online(host)
-    return list(rn['kinds']) if rn else []
+        kinds = [k for k in KINDS if runners.binary(k)]
+    else:
+        rn = runner_online(host)
+        kinds = list(rn['kinds']) if rn else []
+    return [k for k in kinds if host + ':' + k not in BROKEN]
 
 
 def start_run(a, text):
@@ -357,9 +362,10 @@ def start_run(a, text):
         proc = RemoteProc(host, a['id'])
         RJOBS[proc.id] = proc
         rn['jobs'].put({'id': proc.id, 'agent': a['id'], 'kind': a['src'], 'text': text, 'sid': None if new_sid else sid,
-                        'new_sid': new_sid, 'fork': fork, 'system': system, 'cwd': m['path'], 'worktree': m.pop('worktree_of', None)})
+                        'new_sid': new_sid, 'fork': fork, 'system': system, 'cwd': m['path'], 'worktree': m.pop('worktree_of', None),
+                        'chat': bool(m.get('chat'))})
     else:
-        cmd = runners.command(a['src'], text, None if new_sid else sid, new_sid, fork=fork, system=system)
+        cmd = runners.command(a['src'], text, None if new_sid else sid, new_sid, fork=fork, system=system, chat=bool(m.get('chat')))
         env = dict(os.environ, OFFICE_AGENT_ID=a['id'], PATH='/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:' + os.path.expanduser('~/.local/bin'))
         if settings.get('agentProxy'):        # e.g. the VPN's local proxy, for CLIs that ignore macOS VPN routing
             for k in ('HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY', 'https_proxy', 'http_proxy', 'all_proxy'):
@@ -417,10 +423,12 @@ def pump(key, proc):
         a = agents.get(key)
         if not a:
             return
-        if 'Not logged in' in '\n'.join(junk) + ''.join(m['text'] for m in (a.get('chat') or [])[-3:]):
-            BROKEN[a['src']] = 'не залогинен на этом Маке'
+        where = (a['managed'].get('host') or LOCAL_HOST) + ':' + a['src']
+        tail = '\n'.join(junk) + ''.join(m['text'] for m in (a.get('chat') or [])[-3:])
+        if any(x in tail for x in AUTH_FAIL):
+            BROKEN[where] = 'не залогинен' if 'location' not in tail and 'eligible' not in tail else 'недоступен в этом регионе'
         elif a['status'] == 'done' and rc == 0:
-            BROKEN.pop(a['src'], None)
+            BROKEN.pop(where, None)
         if run.get('stopped'):
             set_status(a, 'resting', 'Остановлен')
             chat_add(a, 'sys', 'Остановлен')
@@ -603,7 +611,7 @@ def mcp_call(body):
             return 'Не знаю, где лежит проект %s' % proj, True
         if kind not in ('claude', 'codex') or kind not in host_kinds(host):
             others = [k for k in host_kinds(host) if k in ('claude', 'codex')]
-            return '%s здесь недоступен%s.%s' % (kind, (': ' + BROKEN[kind]) if kind in BROKEN and host == LOCAL_HOST else '',
+            return '%s здесь недоступен%s.%s' % (kind, (': ' + BROKEN[host + ':' + kind]) if host + ':' + kind in BROKEN else '',
                                                 (' Найми kind="%s".' % others[0]) if others else ''), True
         busy = sum(1 for x in agents.values() if x['project'] == proj and x.get('mission') and x['mission'].get('role') == 'worker')
         if busy >= 4:
@@ -825,7 +833,7 @@ def integrations():
 def snapshot():
     with lock:
         live_projects = {a['project'] for a in agents.values()}
-        projs = sorted((p for p in projects.values() if p['name'] in live_projects or time.time() - p['last'] < PROJECT_TTL),
+        projs = sorted((p for p in projects.values() if p['name'] != CHAT_PROJECT and (p['name'] in live_projects or time.time() - p['last'] < PROJECT_TTL)),
                        key=lambda p: p['first'])
         pub = []
         for a in agents.values():
@@ -837,7 +845,8 @@ def snapshot():
                         'where': (a['host'] + ' · ' if a['host'] else '') + a['cwd'].replace(os.path.expanduser('~'), '~'),
                         'managed': bool(a.get('managed')), 'running': a['id'] in RUNS, 'chatLen': len(a.get('chat') or []),
                         'forkable': a['src'] == 'claude' and not a.get('managed') and a.get('host') == LOCAL_HOST,
-                        'xp': a['tasks'] * 10 + a['steps'], 'badges': badges(a), 'errors': a.get('errors', 0)})
+                        'xp': a['tasks'] * 10 + a['steps'], 'badges': badges(a), 'errors': a.get('errors', 0),
+                        'chatOnly': bool(a.get('chatOnly')), 'last': a['last'], 'scope': a.get('scope', '')})
         pub.sort(key=lambda x: x['name'])
         ntfy = {'on': settings['ntfyOn'], 'state': ntfy_state['state'], 'last': ntfy_state['last'],
                 'url': settings['ntfyServer'].rstrip('/') + '/' + settings['ntfyTopic'] if settings['ntfyTopic'] else ''}
@@ -857,7 +866,7 @@ def snapshot():
 
 def save():
     with lock:
-        data = {'agents': agents, 'projects': projects, 'log': log, 'settings': settings, 'boards': boards, 'briefing': briefing}
+        data = {'agents': agents, 'projects': projects, 'log': log, 'settings': settings, 'boards': boards, 'briefing': briefing, 'broken': BROKEN}
         txt = json.dumps(data, ensure_ascii=False)
     os.makedirs(DATA, exist_ok=True)
     tmp = STATE_FILE + '.tmp'
@@ -878,6 +887,7 @@ def load():
     settings.update(data.get('settings', {}))
     boards.update(data.get('boards', {}))
     briefing.update(data.get('briefing', {}))
+    BROKEN.update(data.get('broken', {}))
     for a in agents.values():
         a['approval'] = None          # held hook calls do not survive a restart
         if a['status'] == 'waiting' or (a.get('managed') and a['status'] == 'working'):
@@ -1129,7 +1139,7 @@ class Handler(BaseHTTPRequestHandler):
             except (RuntimeError, OSError) as e:
                 return self._json(400, {'error': str(e)})
             return self._json(200, {'ok': True})
-        if url.path in ('/api/hire', '/api/send', '/api/stop', '/api/fork'):
+        if url.path in ('/api/hire', '/api/send', '/api/stop', '/api/fork', '/api/chatnew'):
             return self._office_run(url.path, body)
         if url.path == '/api/forget':
             with lock:
@@ -1159,6 +1169,24 @@ def _office_run(self, path, body):
                     if not where.startswith('/'):
                         return self._json(400, {'error': 'нужен полный путь к папке на ' + host})
                 return self._json(200, {'id': hire(kind, where, text, host=host)['id']})
+            if path == '/api/chatnew':
+                kind = body.get('kind')
+                host = str(body.get('host') or '') or next((h for h in [LOCAL_HOST] + list(REMOTE) if kind in host_kinds(h)), '')
+                if not host or kind not in host_kinds(host):
+                    return self._json(400, {'error': 'эта модель сейчас недоступна'})
+                if not text:
+                    return self._json(400, {'error': 'пустое сообщение'})
+                where = str(body.get('path') or '').strip() or '~/.ai-office-chats'
+                if host == LOCAL_HOST:
+                    where = os.path.realpath(os.path.expanduser(where))
+                    os.makedirs(os.path.expanduser('~/.ai-office-chats'), exist_ok=True)
+                    if not os.path.isdir(where) or not where.startswith(os.path.expanduser('~') + os.sep):
+                        return self._json(400, {'error': 'папка должна существовать и лежать в домашней папке'})
+                c = hire(kind, where, '', name='%s · %s' % (MODEL_RU.get(kind, kind), short(text, 36)), project=CHAT_PROJECT, host=host)
+                c.update(chatOnly=True, scope=str(body.get('path') or ''))
+                c['managed']['chat'] = True
+                send_to(c, text)
+                return self._json(200, {'id': c['id']})
             a = agents.get(str(body.get('id') or ''))
             if not a:
                 return self._json(404, {'error': 'нет такого агента'})

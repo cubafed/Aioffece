@@ -156,6 +156,19 @@ body.live #routinesCard{display:none}
 .fame .rk{font-weight:800;width:18px;text-align:center;color:var(--muted)}
 .fame .bg{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
 .fame .bg span{font-size:10px;font-weight:700;background:var(--chip);border-radius:99px;padding:1px 7px}
+.chats{top:calc(env(safe-area-inset-top,0px) + 58px);left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 12px);display:grid;grid-template-columns:270px minmax(0,1fr);z-index:8;overflow:hidden}
+.chats>aside{border-right:1px solid var(--line);overflow:auto;padding:10px;display:flex;flex-direction:column;gap:4px}
+.chats .conv{display:flex;gap:8px;align-items:center;width:100%;border:0;background:transparent;text-align:left;padding:8px;border-radius:8px;font-size:13px}
+.chats .conv:hover,.chats .conv[aria-current="true"]{background:var(--chip)}
+.chats .conv .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.chats>main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.chats header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--line)}
+.chats .msgs{flex:1;overflow:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.chats .msg{max-width:min(720px,85%)}
+.chats form{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line)}
+.chats textarea{flex:1;min-width:0;resize:none;font:inherit;font-size:14px;color:var(--ink);background:var(--chip);border:0;border-radius:10px;padding:10px 12px;height:44px}
+.chats select{font:inherit;font-size:12px;color:var(--ink);background:var(--chip);border:0;border-radius:8px;padding:6px 8px;max-width:260px}
+@media (max-width:760px){.chats{grid-template-columns:1fr}.chats.in>aside{display:none}.chats:not(.in)>main{display:none}}
 .s-todo{background:var(--rest)}.s-doing{background:var(--ok)}.s-review{background:var(--wait)}.s-blocked{background:var(--err)}
 .bd{padding:8px 10px;display:flex;flex-direction:column;gap:8px}
 .bd .goal{background:var(--chip);border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.35}
@@ -261,6 +274,7 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
 <div class="card tr">
   <button class="btn ghost" id="darkBtn" aria-pressed="false"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span class="lbl" id="darkLbl">Тёмная</span></button>
   <button class="btn ghost" id="soundBtn" aria-pressed="false" title="Звуки офиса"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path id="soundWave" d="M15.5 8.5a5 5 0 0 1 0 7"/></svg><span class="lbl" id="soundLbl">Звук</span></button>
+  <button class="btn ghost" id="chatsBtn" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="lbl">Чаты</span></button>
   <button class="btn ghost" id="hireBtn" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="lbl">Нанять</span></button>
   <button class="btn" id="connectBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0V7zM12 16v5"/></svg><span class="lbl">Подключить ИИ</span></button>
 </div>
@@ -317,6 +331,7 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
 <div id="chatWrap"></div>
 <div id="connectWrap"></div>
 <div id="hireWrap"></div>
+<div id="chatsWrap"></div>
 
 <script src="vendor/three.min.js"></script>
 <script>window.THREE || document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"><\/script>')</script>
@@ -744,7 +759,7 @@ const ST = { working: 'Работает', waiting: 'Ждёт тебя', done: '�
 const ava = (a, cls) => `<span class="ava ${cls || ''}" style="background:${KIND[a.kind].color};--c:${KIND[a.kind].color}" aria-hidden="true"><i></i></span>`;
 function renderUI() {
   $('floorsN').textContent = FLOORS.length;
-  $('hireBtn').hidden = !S.live; renderLimits(); renderBrief(); paintSound();
+  $('hireBtn').hidden = !S.live; $('chatsBtn').hidden = !S.live; renderLimits(); renderBrief(); paintSound(); renderChats(true);
   if (S.live && S.hub.weather && S.hub.weather.temp != null) $('modeLbl').textContent = 'Live · Москва ' + (S.hub.weather.temp > 0 ? '+' : '') + Math.round(S.hub.weather.temp) + '°';
   if (S.live) { const a = S.sel && byId(S.sel); $('cmdWho').textContent = a && a.managed ? a.name : 'новому агенту'; }
   $('tUse').hidden = false; $('tUse').textContent = S.live && !S.open ? 'Почёт' : 'Расход';
@@ -826,7 +841,7 @@ function renderConnect() {
 }
 
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-approve],[data-deny],[data-chat],[data-floor],[data-home],[data-sel],[data-wake],[data-pause],[data-closechat],[data-closeconn],[data-unsel],[data-ping],[data-q],[data-routine],[data-forget],[data-wait],[data-ntfy],[data-copyprompt],[data-stop],[data-fork],[data-kind],[data-closehire],[data-mission],[data-briefclose]'); if (!t) return;
+  const t = e.target.closest('[data-approve],[data-deny],[data-chat],[data-floor],[data-home],[data-sel],[data-wake],[data-pause],[data-closechat],[data-closeconn],[data-unsel],[data-ping],[data-q],[data-routine],[data-forget],[data-wait],[data-ntfy],[data-copyprompt],[data-stop],[data-fork],[data-kind],[data-closehire],[data-mission],[data-briefclose],[data-conv],[data-cmodel],[data-closechats],[data-newchat]'); if (!t) return;
   const d = t.dataset;
   if (d.closeconn) { if (e.target === t || t.tagName === 'BUTTON') $('connectWrap').innerHTML = ''; return; }
   if (d.approve) approve(d.approve);
@@ -836,6 +851,10 @@ document.addEventListener('click', (e) => {
   else if (d.stop) { api('/api/stop', { id: d.stop }).catch(e => toastErr(e)); }
   else if (d.kind) { S.hireKind = d.kind; renderHire(); }
   else if (d.mission) openMission(d.mission);
+  else if (d.conv) { S.chatsSel = d.conv; S.chatsMsgs = null; S.chatsLen = -1; renderChats(); loadConv(d.conv); }
+  else if (d.newchat) { S.chatsSel = null; renderChats(); }
+  else if (d.cmodel) { S.chatsModel = d.cmodel; renderChats(); }
+  else if (d.closechats) { S.chatsOpen = false; renderChats(); }
   else if (d.briefclose) { store.set('office-brief', S.hub.briefing.day); renderBrief(); }
   else if (d.closehire) { if (e.target === t || t.tagName === 'BUTTON') $('hireWrap').innerHTML = ''; }
   else if (d.forget) { api('/api/forget', { id: d.forget }).catch(e => { log('Офис', e.message, 'error'); renderUI(); }); S.sel = null; }
@@ -863,6 +882,7 @@ $('tBoard').onclick = () => { S.tab = 'board'; renderUI(); };
 $('finToggle').onclick = () => { S.finOpen = !S.finOpen; $('finToggle').setAttribute('aria-expanded', String(S.finOpen)); $('finToggle').style.transform = S.finOpen ? '' : 'rotate(180deg)'; renderUI(); };
 $('connectBtn').onclick = renderConnect;
 $('hireBtn').onclick = () => openHire('');
+$('chatsBtn').onclick = () => { S.chatsOpen = !S.chatsOpen; if (S.chatsOpen && !S.hireDirs) api('/api/dirs').then(j => { S.hireDirs = j.dirs; renderChats(); }).catch(toastErr); renderChats(); };
 $('darkBtn').onclick = () => { S.dark = !S.dark; store.set('office-dark', S.dark ? '1' : '0'); applyDark(); };
 $('home').onclick = closeFloor;
 const rotate = (ang) => { const off = camera.position.clone().sub(controls.target); off.applyAxisAngle(new THREE.Vector3(0, 1, 0), ang); camera.position.copy(controls.target).add(off); };
@@ -1039,7 +1059,7 @@ function renderHire() {
     <label for="hireDir">Проект</label><select id="hireDir">${dirs.map(d => { const v = d.host + '|' + d.path; return `<option value="${esc(v)}" ${v === S.hireDir ? 'selected' : ''}>${esc(d.name)} — ${hostName(d.host)}, ${esc(d.path.replace(/^\/(Users|home)\/[^/]+/, '~'))}</option>`; }).join('')}<option value="other" ${S.hireDir === 'other' ? 'selected' : ''}>Другая папка…</option></select>
     ${S.hireDir === 'other' ? `<div class="opts" role="group" aria-label="Где">${Object.keys(hosts).map(h => `<button type="button" class="btn ghost" data-hirehost="${esc(h)}" aria-pressed="${h === otherHost}">${esc(hostName(h))}</button>`).join('')}</div><input id="hireOther" placeholder="${otherHost === local ? '~/Projects/моя-папка' : '/home/coder/моя-папка'}" value="${esc(prevOther)}">` : ''}
     <label>Агент</label><div class="opts" role="group" aria-label="Агент">${kinds.map(k => `<button type="button" class="btn ghost" data-kind="${k}" aria-pressed="${k === S.hireKind}">${KIND_RU[k] || k}</button>`).join('') || `<span class="muted">На ${esc(hostName(host))} сейчас нет доступных агентов</span>`}</div>
-    ${S.hub.broken && S.hub.broken.claude && host === local ? '<p class="muted" style="margin:-6px 0 6px;font-size:12px">Claude на Маке не залогинен. Клода можно нанять на сервере.</p>' : ''}
+    ${S.hub.broken && S.hub.broken[local + ':claude'] && host === local ? '<p class="muted" style="margin:-6px 0 6px;font-size:12px">Claude на Маке не залогинен. Клода можно нанять на сервере.</p>' : ''}
     <label for="hireTask">Первая задача <span class="muted" style="font-weight:400">(можно пусто)</span></label><textarea id="hireTask" placeholder="Например: добавь напоминание за 10 минут до пары">${esc(prevTask || '')}</textarea>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button type="button" class="btn ghost" data-closehire="1">Отмена</button><button class="btn" type="submit">Нанять</button></div></form></div>`;
   $('hireDir').onchange = () => { S.hireDir = $('hireDir').value; renderHire(); };
@@ -1179,6 +1199,47 @@ function renderBrief() {
   el.hidden = !show; if (!show) return;
   el.innerHTML = `<div style="flex:1">${esc(b.text)}</div><button class="chev" data-briefclose="1" aria-label="Скрыть планёрку"><svg width="12" height="12" viewBox="0 0 14 14" stroke="currentColor" stroke-width="2"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>`;
 }
+const MODELS = [['codex', 'GPT'], ['claude', 'Claude'], ['antigravity', 'Gemini']];
+function loadConv(id) {
+  if (S.chatsLoading) return;
+  S.chatsLoading = true;
+  api('/api/chat?id=' + encodeURIComponent(id)).then(j => { S.chatsLoading = false; if (S.chatsSel !== id) return; S.chatsMsgs = j.chat; S.chatsLen = j.chat.length; renderChats(true); })
+    .catch(e => { S.chatsLoading = false; toastErr(e); });
+}
+function renderChats(soft) {
+  const wrap = $('chatsWrap');
+  if (!S.chatsOpen || !S.live) { wrap.innerHTML = ''; return; }
+  const hosts = S.hub.hosts || {}, local = S.hub.localHost;
+  const list = (S.hub.agents || []).filter(h => h.chatOnly).sort((x, y) => y.last - x.last);
+  const cur = S.chatsSel ? list.find(c => c.id === S.chatsSel) : null;
+  if (S.chatsSel && !cur) S.chatsSel = null;
+  if (cur && S.chatsMsgs && cur.chatLen > S.chatsLen) loadConv(cur.id);
+  const models = MODELS.filter(([k]) => Object.values(hosts).some(ks => ks.includes(k)));
+  if (!models.some(m => m[0] === S.chatsModel)) S.chatsModel = (models[0] || [])[0];
+  const host = hosts[local] && hosts[local].includes(S.chatsModel) ? local : Object.keys(hosts).find(h => hosts[h].includes(S.chatsModel));
+  const known = S.hub.projects.filter(p => p.path && p.host === host).map(p => ({ name: p.name, path: p.path }));
+  const dirs = [...known, ...(S.hireDirs || []).filter(d => d.host === host && !known.some(k => k.path === d.path))];
+  const prevText = $('convIn') ? $('convIn').value : '', prevScope = $('convScope') ? $('convScope').value : '';
+  const ms0 = wrap.querySelector('.msgs'), atBottom = !ms0 || ms0.scrollHeight - ms0.scrollTop - ms0.clientHeight < 40;
+  const msgs = !cur ? `<div class="msg sys">Выбери модель${dirs.length ? ' и, если нужно, проект, который она сможет читать' : ''}. Модель отвечает, читает файлы, но ничего не правит и не запускает.</div>`
+    : S.chatsMsgs === null ? '<div class="msg sys">Загружаю…</div>'
+    : S.chatsMsgs.map(m => `<div class="msg ${m.who === 'me' ? 'me' : m.who}">${chatHtml(m.text)}<time>${m.t || ''}</time></div>`).join('') + (cur.running ? '<div class="msg sys">Думает…</div>' : '');
+  const head = cur ? `<b>${esc(cur.name)}</b><span class="muted" style="font-size:12px">${cur.scope ? 'читает ' + esc(cur.scope.replace(/^\/(Users|home)\/[^/]+/, '~')) : 'без проекта'}</span>${cur.running ? `<button class="btn ghost" data-stop="${cur.id}">Остановить</button>` : ''}<button class="btn ghost" data-forget="${cur.id}" style="margin-left:auto">Удалить чат</button>`
+    : `<div class="opts" style="margin:0" role="group" aria-label="Модель">${models.map(([k, n]) => `<button type="button" class="btn ghost" data-cmodel="${k}" aria-pressed="${k === S.chatsModel}">${n}</button>`).join('') || '<span class="muted">Нет доступных моделей</span>'}</div>
+       <label class="sr" for="convScope">Проект</label><select id="convScope"><option value="">Без проекта</option>${dirs.map(d => `<option value="${esc(d.path)}" ${d.path === prevScope ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select>
+       <span class="muted" style="font-size:12px">${host && host !== local ? 'на сервере ' + esc(host) : host ? 'на Маке' : ''}</span>`;
+  wrap.innerHTML = `<section class="card chats ${cur ? 'in' : ''}" aria-label="Чаты с моделями"><aside><button class="btn" data-newchat="1">+ Новый чат</button>
+      ${list.map(c => `<button class="conv" data-conv="${c.id}" aria-current="${c.id === S.chatsSel}"><i class="dot s-${c.status}"></i><span class="t">${esc(c.name)}</span></button>`).join('') || '<p class="muted" style="font-size:12px;padding:6px">Чатов пока нет</p>'}</aside>
+    <main><header>${head}<button class="chev" data-closechats="1" aria-label="Закрыть чаты" style="${cur ? '' : 'margin-left:auto'}"><svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" stroke-width="2"><path d="M3 3l8 8M11 3l-8 8"/></svg></button></header>
+      <div class="msgs">${msgs}</div>
+      <form id="convForm"><label class="sr" for="convIn">Сообщение</label><textarea id="convIn" placeholder="${cur ? (cur.running ? 'Добавить в очередь…' : 'Написать…') : 'Спроси что-нибудь…'}"></textarea><button class="btn" type="submit" aria-label="Отправить">→</button></form></main></section>`;
+  const ms = wrap.querySelector('.msgs'); if (atBottom || !soft) ms.scrollTop = ms.scrollHeight;
+  const ta = $('convIn'); ta.value = prevText; if (soft && prevText) ta.focus();
+  ta.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('convForm').requestSubmit(); } };
+  $('convForm').onsubmit = (e) => { e.preventDefault(); const v = ta.value.trim(); if (!v) return; ta.value = '';
+    if (cur) api('/api/send', { id: cur.id, text: v }).then(() => loadConv(cur.id)).catch(toastErr);
+    else api('/api/chatnew', { kind: S.chatsModel, host, path: ($('convScope') || {}).value || '', text: v }).then(j => { S.chatsSel = j.id; S.chatsMsgs = []; S.chatsLen = 0; renderChats(); loadConv(j.id); }).catch(toastErr); };
+}
 function renderConnectLive() {
   const it = S.hub.integrations || {}, w = S.hub.settings.approveWait;
   const nt = S.hub.ntfy || {};
@@ -1221,11 +1282,12 @@ function applyHub(st) {
   const projs = st.projects.length ? st.projects : [{ name: 'Холл', color: '#9aa1ad' }];
   const prev = new Map(ALL().map(a => [a.id, a]));
   // Grok bots live in their own annex; a project only they report goes there instead of the tower
-  const grokOnly = new Set(projs.filter(p => { const own = st.agents.filter(h => h.project === p.name); return own.length && own.every(h => h.kind === 'grok'); }).map(p => p.name));
+  const grokOnly = new Set(projs.filter(p => { const own = st.agents.filter(h => h.project === p.name && !h.chatOnly); return own.length && own.every(h => h.kind === 'grok'); }).map(p => p.name));
   const tower = projs.filter(p => !grokOnly.has(p.name));
   const floors = (tower.length ? tower : [{ name: 'Холл', color: '#9aa1ad' }]).slice().reverse().map(p => ({ name: p.name, color: p.color, agents: [] }));   // newest project on top
   if (st.agents.some(h => h.kind === 'grok')) floors.push({ name: 'Grok', color: '#3a3d45', annex: true, agents: [] });
   st.agents.forEach(h => {
+    if (h.chatOnly) return;
     const fi = h.kind === 'grok' ? floors.length - 1 : floors.findIndex(f => f.name === h.project); if (fi < 0) return;
     const a = prev.get(h.id) || { id: h.id, seatKind: null, use: 0 };
     a.prevStatus = a.status;
