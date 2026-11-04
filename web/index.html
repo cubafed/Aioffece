@@ -883,7 +883,7 @@ function detailActs(a) {
 }
 function renderConnectLive() {
   const it = S.hub.integrations || {}, w = S.hub.settings.approveWait;
-  const rows = [['claude', 'Claude Code', 'Хуки: задача, инструменты, разрешения, конец хода', it.claude], ['codex', 'Codex', 'Хуки Codex: те же события', it.codex], ['grok', 'Grok', 'Пока не подключён', false], ['gemini', 'Gemini', 'Пока не подключён', false]];
+  const rows = [['claude', 'Claude Code', 'Хуки: задача, инструменты, разрешения, конец хода', it.claude], ['codex', 'Codex', 'Хуки Codex: те же события', it.codex], ['grok', 'Grok', 'Пока не подключён', false], ['gemini', 'Gemini · Antigravity', 'agy, агент в Gemini.app, IDE: задача, инструменты, конец хода. Разрешения — в самом Antigravity', it.gemini]];
   $('connectWrap').innerHTML = `<div class="scrim" data-closeconn="1"><div class="card modal" role="dialog" aria-modal="true" aria-labelledby="cTitle"><h2 id="cTitle">Подключённые ИИ</h2><p class="muted" style="margin:0 0 10px">Агенты шлют события в хаб на этом Маке через хуки.</p>
   ${rows.map(([k, n, d, on]) => `<div class="int"><span class="ava" style="background:${KIND[k].color}"><i></i></span><div class="tx"><b>${n}</b><small>${d}</small></div><span class="${on ? 'pill-ok' : 'badge'}">${on ? 'подключён' : 'нет'}</span></div>`).join('')}
   <div class="int" style="flex-wrap:wrap"><div class="tx" style="min-width:200px"><b>Ждать решения из офиса</b><small>Пока офис открыт, запрос разрешения ждёт клика здесь, потом уходит в терминал и Vibe Island</small></div><div style="display:flex;gap:4px">${[0, 30, 60, 120].map(x => `<button class="btn ${x === w ? '' : 'ghost'}" data-wait="${x}">${x ? x + ' с' : 'нет'}</button>`).join('')}</div></div>

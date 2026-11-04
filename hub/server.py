@@ -25,7 +25,8 @@ HOST = os.environ.get('OFFICE_HOST', '127.0.0.1')
 PORT = int(os.environ.get('OFFICE_PORT', '4747'))
 ALLOWED_HOSTS = {'127.0.0.1', 'localhost'}
 
-NAMES = {'claude': 'Клод', 'codex': 'Кодекс', 'grok': 'Грок', 'gemini': 'Джемини'}
+NAMES = {'claude': 'Клод', 'codex': 'Кодекс', 'grok': 'Грок', 'gemini': 'Джемини', 'antigravity': 'Джемини'}
+LOOK = {'antigravity': 'gemini'}   # which character the office draws for a source
 PALETTE = ['#22a55b', '#8b5cf6', '#f08c1a', '#3b82f6', '#14b8a6', '#e5484d', '#d946ef', '#0ea5e9', '#84cc16', '#f59e0b']
 HIST_LEN, HIST_STEP = 14, 300          # activity sparkline: 14 buckets of 5 minutes
 IDLE_AFTER, FORGET_AFTER = 15 * 60, 12 * 3600
@@ -54,19 +55,21 @@ def base(p):
 
 def describe(tool, inp):
     inp = inp if isinstance(inp, dict) else {}
-    if tool in ('Bash', 'shell', 'local_shell', 'exec_command', 'shell_command', 'Shell'):
+    if tool in ('Bash', 'shell', 'local_shell', 'exec_command', 'shell_command', 'Shell', 'run_command'):
         cmd = inp.get('description') or inp.get('command') or inp.get('cmd') or ''
         if isinstance(cmd, list):
             cmd = ' '.join(map(str, cmd))
         return 'Терминал: ' + short(cmd, 70)
-    if tool in ('Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'apply_patch'):
+    if tool in ('Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'apply_patch', 'write_to_file', 'replace_file_content', 'multi_replace_file_content'):
         f = inp.get('file_path') or inp.get('notebook_path') or inp.get('path')
         return 'Правит ' + base(f) if f else 'Правит код'
-    if tool == 'Read':
+    if tool in ('Read', 'view_file', 'view_file_outline', 'view_code_item'):
         return 'Читает ' + base(inp.get('file_path'))
-    if tool in ('Grep', 'Glob', 'grep_files'):
-        return 'Ищет ' + short(inp.get('pattern'), 40)
-    if tool in ('WebFetch', 'WebSearch'):
+    if tool in ('Grep', 'Glob', 'grep_files', 'grep_search', 'find_by_name', 'list_dir', 'codebase_search'):
+        return 'Ищет ' + short(inp.get('pattern') or inp.get('query') or base(inp.get('path')), 40)
+    if tool.startswith('browser_'):
+        return 'Браузер: ' + tool[8:].replace('_', ' ')
+    if tool in ('WebFetch', 'WebSearch', 'read_url_content', 'search_web'):
         return 'Ищет в интернете: ' + short(inp.get('query') or inp.get('url'), 50)
     if tool in ('Task', 'Agent'):
         return 'Запустил субагента: ' + short(inp.get('description'), 50)
@@ -130,9 +133,21 @@ def close_approval(a, how):
     a['approval'] = None
 
 
+def agy_event(p):
+    """Antigravity's lifecycle → the Claude Code event the rest of the hub understands."""
+    ev = p.get('hook_event_name') or ''
+    if ev == 'PreInvocation':          # fires before every model call; the first one starts a turn
+        return 'UserPromptSubmit' if (p.get('invocation') or 1) <= 1 else 'PostToolUse'
+    if ev == 'PostToolUse':            # no PreToolUse hook (Antigravity blocks on it), so describe the tool here
+        return 'PreToolUse'
+    if ev == 'Stop':
+        return 'StopFailure' if p.get('stop_reason') == 'ERROR' else 'Stop'
+    return ev
+
+
 def handle_hook(src, p):
     """Apply one hook event. Returns the approval dict for PermissionRequest, else None."""
-    ev = p.get('hook_event_name') or ''
+    ev = agy_event(p) if src == 'antigravity' else (p.get('hook_event_name') or '')
     sid = str(p.get('session_id') or p.get('thread_id') or 'unknown')
     key = src + ':' + sid
     with lock:
@@ -230,7 +245,7 @@ _integr = {'at': 0, 'val': {}}
 def integrations():
     if time.time() - _integr['at'] > 30:
         val = {}
-        for k, path in (('claude', '~/.claude/settings.json'), ('codex', '~/.codex/hooks.json')):
+        for k, path in (('claude', '~/.claude/settings.json'), ('codex', '~/.codex/hooks.json'), ('gemini', '~/.gemini/config/hooks.json')):
             try:
                 with open(os.path.expanduser(path), encoding='utf-8') as f:
                     val[k] = 'office_hook.py' in f.read()
@@ -248,7 +263,7 @@ def snapshot():
         pub = []
         for a in agents.values():
             ap = approvals.get(a['approval'] or '')
-            pub.append({'id': a['id'], 'name': a['name'], 'kind': a['src'], 'status': a['status'], 'task': a['task'],
+            pub.append({'id': a['id'], 'name': a['name'], 'kind': LOOK.get(a['src'], a['src']), 'status': a['status'], 'task': a['task'],
                         'project': a['project'], 'since': a['since'], 'steps': a['steps'], 'tasks': a['tasks'],
                         'events': a['events'], 'hist': a['hist'],
                         'approval': ap['id'] if ap and ap['live'] and not ap['decision'] else None,

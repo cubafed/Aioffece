@@ -6,7 +6,8 @@
   python3 hooks.py status
 
 Our entries are recognised by the path of office_hook.py; other hooks (Vibe Island, caveman,
-context-mode) are left untouched.
+context-mode) are left untouched. Antigravity (agy, Gemini app, IDE) uses its own format: one named
+entry «ai-office» in ~/.gemini/config/hooks.json.
 """
 import json
 import os
@@ -23,6 +24,35 @@ TARGETS = {
     'codex': (os.path.expanduser('~/.codex/hooks.json'),
               ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PermissionRequest', 'Stop']),
 }
+
+
+AGY_PATH = os.path.expanduser('~/.gemini/config/hooks.json')
+AGY_NAME = 'ai-office'
+
+
+def agy_entry():
+    h = lambda ev: {'type': 'command', 'command': '/usr/bin/python3 %s antigravity %s' % (HOOK, ev), 'timeout': 5}
+    # No PreToolUse: Antigravity fails closed on it, the office only observes Gemini.
+    return {'SessionStart': [h('SessionStart')], 'PreInvocation': [h('PreInvocation')],
+            'PostToolUse': [{'matcher': '*', 'hooks': [h('PostToolUse')]}], 'Stop': [h('Stop')]}
+
+
+def apply_agy(mode):
+    if not os.path.isdir(os.path.expanduser('~/.gemini')):
+        print('antigravity: not installed, skipped')
+        return
+    data = load(AGY_PATH)
+    if mode == 'status':
+        print('antigravity: %s in %s' % ('installed' if AGY_NAME in data else 'not installed', AGY_PATH))
+        return
+    if mode == 'uninstall' and AGY_NAME not in data:
+        return
+    data.pop(AGY_NAME, None)
+    if mode == 'install':
+        data[AGY_NAME] = agy_entry()
+    os.makedirs(os.path.dirname(AGY_PATH), exist_ok=True)
+    write(AGY_PATH, data)
+    print('antigravity: %s (%s)' % ('installed' if mode == 'install' else 'removed', AGY_PATH))
 
 
 def ours(group):
@@ -84,3 +114,4 @@ if __name__ == '__main__':
     if mode not in ('install', 'uninstall', 'status'):
         sys.exit(__doc__)
     apply(mode)
+    apply_agy(mode)

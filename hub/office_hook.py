@@ -2,6 +2,7 @@
 """Hook client for Claude Code and Codex: forwards the hook event to the ИИ-Офис hub.
 
 Usage in hook config: /usr/bin/python3 ~/ai-office/hub/office_hook.py claude|codex
+                      /usr/bin/python3 ~/ai-office/hub/office_hook.py antigravity <Event>
 
 Never gets in the agent's way: any error (hub down, bad input) exits 0 with no output, which
 leaves the agent's normal flow unchanged. Only a PermissionRequest answered in the office
@@ -13,6 +14,8 @@ import sys
 import urllib.request
 
 URL = os.environ.get('AI_OFFICE_URL', 'http://127.0.0.1:4747')
+AGY_ARGS = {'CommandLine': 'command', 'TargetFile': 'file_path', 'AbsolutePath': 'file_path', 'File': 'file_path',
+            'SearchPath': 'path', 'DirectoryPath': 'path', 'Query': 'query', 'Pattern': 'pattern', 'Url': 'url'}
 KEEP = ('command', 'description', 'file_path', 'notebook_path', 'path', 'pattern', 'query', 'url', 'cmd', 'subagent_type')
 
 
@@ -30,15 +33,28 @@ def project_of(cwd):
     return os.path.basename(cwd.rstrip('/')) or cwd
 
 
+def from_antigravity(p, event):
+    """Antigravity (agy CLI, Gemini app, IDE) sends camelCase protojson: map it to the Claude field names."""
+    ws = p.get('workspacePaths') or []
+    call = p.get('toolCall') or {}
+    args = call.get('args') or {}
+    return {'hook_event_name': event, 'session_id': p.get('conversationId'), 'cwd': ws[0] if ws else '',
+            'prompt': p.get('lastUserInput') or '', 'tool_name': call.get('name') or '',
+            'tool_input': {AGY_ARGS[k]: v for k, v in args.items() if k in AGY_ARGS},
+            'invocation': p.get('invocationNum'), 'stop_reason': p.get('terminationReason') or ''}
+
+
 def main():
     src = sys.argv[1] if len(sys.argv) > 1 else 'claude'
     raw = sys.stdin.read()
     p = json.loads(raw) if raw.strip() else {}
     if not isinstance(p, dict):
         return
-    cwd = p.get('cwd') or os.getcwd()
+    if src == 'antigravity':
+        p = from_antigravity(p, sys.argv[2] if len(sys.argv) > 2 else '')
+    cwd = p.get('cwd') or ('' if src == 'antigravity' else os.getcwd())
     p['cwd'] = cwd
-    p['project'] = project_of(cwd)
+    p['project'] = project_of(cwd) if cwd else 'Antigravity'
     p['host'] = os.uname().nodename.split('.')[0]
     for big in ('tool_response', 'transcript_path', 'permission_suggestions'):
         p.pop(big, None)
@@ -64,4 +80,6 @@ try:
     main()
 except Exception:  # fail open: the office must never block or break an agent
     pass
+if len(sys.argv) > 1 and sys.argv[1] == 'antigravity':
+    sys.stdout.write('{}')   # Antigravity expects a JSON object back from every hook
 sys.exit(0)
