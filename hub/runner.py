@@ -62,6 +62,12 @@ def run_job(job):
             buf.append(raw.decode('utf-8', 'replace').rstrip('\n'))
             flush()
         rc = p.wait()
+        if job.get('branch_commit') or '/.office-worktrees/' in cwd:      # same as the hub does on the Mac: commit the worker's changes
+            g = lambda *a: subprocess.run(['git', '-C', cwd, *a], capture_output=True, text=True, timeout=60)
+            if g('status', '--porcelain').stdout.strip():
+                g('add', '-A')
+                if g('-c', 'user.name=ИИ-Офис', '-c', 'user.email=office@localhost', 'commit', '-q', '-m', (job.get('text') or 'работа')[:72]).returncode == 0:
+                    buf.append('Офис закоммитил изменения в ветку исполнителя')
     except Exception as e:
         buf.append(str(e))
     finally:

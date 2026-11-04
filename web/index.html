@@ -545,6 +545,7 @@ box(6, 1.2, 0.6, M.dark, -10, 0.6, 18.5); box(5.6, 0.04, 0.02, M.red, -10, 0.25,
   const p = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 1.05), new THREE.MeshBasicMaterial({ map: t, toneMapped: false })); p.position.set(-10, 0.62, 18.81); scene.add(p); }
 
 /* ---------- trees (instanced) ---------- */
+const TREES = {};
 {
   const spots = [];
   const blocked = (x, z) => (x > BX - W / 2 - 4 && x < BX + W / 2 + 4 && z > BZ - D / 2 - 3 && z < BZ + D / 2 + 3)
@@ -571,6 +572,7 @@ box(6, 1.2, 0.6, M.dark, -10, 0.6, 18.5); box(5.6, 0.04, 0.02, M.red, -10, 0.25,
     m4.compose(new THREE.Vector3(s[0], 1.6 * s[2], s[1]), q, new THREE.Vector3(r, s[2], r)); pines.setMatrixAt(i * 2, m4); pines.setColorAt(i * 2, col.set('#7fbf96'));
     m4.compose(new THREE.Vector3(s[0], 2.6 * s[2], s[1]), q, new THREE.Vector3(r * 0.7, s[2] * 0.8, r * 0.7)); pines.setMatrixAt(i * 2 + 1, m4); pines.setColorAt(i * 2 + 1, col.set('#94cca8')); });
   [trunks, crowns, pines].forEach(m => { m.castShadow = true; m.receiveShadow = true; scene.add(m); });
+  Object.assign(TREES, { crowns, pines, base: [crowns.instanceColor.array.slice(), pines.instanceColor.array.slice()] });
 }
 
 /* ---------- building ---------- */
@@ -705,17 +707,39 @@ function bodyGeo(shape) {
   return new THREE.CapsuleGeometry(0.34, 0.42, 4, 12);
 }
 const EYE = { drop: [0.08, 0.43], cube: [0.06, 0.37], sphere: [0.06, 0.45], capsule: [0.1, 0.35] };
-function makeAgent(a, delay) {
-  const k = KIND[a.kind], g = new THREE.Group(), m = new THREE.MeshStandardMaterial({ color: k.color, roughness: 0.5, flatShading: true });
+const HAT_TOP = { drop: 0.58, cube: 0.36, sphere: 0.44, capsule: 0.55 };
+function addHat(body, shape, hat) {
+  const top = HAT_TOP[shape], dark = mat('#22252b'), gold = mat('#f2b632', { metalness: 0.5, roughness: 0.35 });
+  if (hat === 'crown') {
+    cyl(0.3, 0.3, 0.1, gold, 0, top + 0.05, 0, body, 10);
+    for (let i = 0; i < 5; i++) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.2, 6), gold), an = i / 5 * Math.PI * 2; sp.position.set(Math.cos(an) * 0.24, top + 0.2, Math.sin(an) * 0.24); body.add(sp); }
+  } else if (hat === 'cap') {
+    const red = mat('#e5484d'); const dome = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), red); dome.position.y = top; body.add(dome);
+    box(0.34, 0.03, 0.26, red, 0, top + 0.01, -0.3, body);
+  } else if (hat === 'tophat') {
+    cyl(0.36, 0.36, 0.04, dark, 0, top + 0.02, 0, body, 18); cyl(0.22, 0.22, 0.42, dark, 0, top + 0.25, 0, body, 18); cyl(0.225, 0.225, 0.06, mat('#e5484d'), 0, top + 0.1, 0, body, 18);
+  } else if (hat === 'ears') {
+    [-0.17, 0.17].forEach(x => { const e = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.22, 4), body.material); e.position.set(x, top + 0.06, 0); body.add(e); });
+  } else if (hat === 'phones') {
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.035, 6, 20, Math.PI), dark); band.position.y = top - 0.12; body.add(band);
+    [-0.34, 0.34].forEach(x => { const c = cyl(0.09, 0.09, 0.08, dark, x, top - 0.12, 0, body, 12); c.rotation.z = Math.PI / 2; });
+  }
+}
+function makeAgent(a, delay, arrive) {
+  const k = KIND[a.kind], look = a.look || {}, g = new THREE.Group(), m = new THREE.MeshStandardMaterial({ color: look.color || k.color, roughness: 0.5, flatShading: true });
   const body = new THREE.Mesh(bodyGeo(k.shape), m); body.castShadow = true; g.add(body);
   const eye = new THREE.MeshBasicMaterial({ color: 0x111111 }), ey = EYE[k.shape][0], ez = EYE[k.shape][1];
   [-0.12, 0.12].forEach(dx => { const e = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), eye); e.position.set(dx, ey, -ez); e.scale.set(1, 1.25, 0.5); body.add(e); });
-  if (a.crown) { const gold = mat('#f2b632', { metalness: 0.5, roughness: 0.35 }), top = { drop: 0.58, cube: 0.36, sphere: 0.44, capsule: 0.55 }[k.shape];
-    cyl(0.3, 0.3, 0.1, gold, 0, top + 0.05, 0, body, 10);
-    for (let i = 0; i < 5; i++) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.2, 6), gold), an = i / 5 * Math.PI * 2; sp.position.set(Math.cos(an) * 0.24, top + 0.2, Math.sin(an) * 0.24); body.add(sp); } }
+  if (look.hat || a.crown) addHat(body, k.shape, look.hat || 'crown');
   body.userData.agentId = a.id; FLOORS[a.fi].L.agents.add(g);
   const bub = document.createElement('button'); bub.className = 'bub'; bub.addEventListener('click', () => select(a.id)); $('ov').appendChild(bub);
-  const r = { a, g, body, bub, phase: Math.random() * 6, drop: performance.now() + (delay || 0) }; AG.set(a.id, r); place(a); paintBubble(a); return r;
+  const r = { a, g, body, bub, phase: Math.random() * 6, drop: performance.now() + (delay || 0), floorL: FLOORS[a.fi].L, lookSig: JSON.stringify(look) };
+  AG.set(a.id, r);
+  if (arrive && !FLOORS[a.fi].annex) {        // new hire: rides the lift up and walks to the desk
+    g.position.set(W / 2 - 0.8, 0, D / 2 - 1.0); r.placed = true;
+    S.elev = { y: FLOORS[a.fi].L.base, t0: performance.now() };
+  }
+  place(a); paintBubble(a); return r;
 }
 function place(a) { const r = AG.get(a.id); if (!r) return; const s = seatFor(a); r.goal = s; if (!r.placed) { r.g.position.set(s.x, 0, s.z); r.g.rotation.y = s.ry; r.placed = true; } }
 function paintBubble(a) {
@@ -728,6 +752,21 @@ function paintBubble(a) {
 }
 
 /* ---------- floor tags ---------- */
+// glass lift on the tower's front-right corner
+let elevator = null, elevCab = null;
+function buildElevator() {
+  if (elevator) { scene.remove(elevator); elevator.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
+  elevator = new THREE.Group(); elevator.position.set(BX + W / 2 + 1.15, 0, BZ + D / 2 - 0.9); scene.add(elevator);
+  const h = NF * H + 0.6;
+  box(1.5, h, 1.5, M.railGlass, 0, BASE + h / 2, 0, elevator, { noCast: true });
+  [[-0.75, -0.75], [0.75, -0.75], [-0.75, 0.75], [0.75, 0.75]].forEach(([x, z]) => box(0.07, h, 0.07, M.dark, x, BASE + h / 2, z, elevator));
+  box(1.6, 0.12, 1.6, M.dark, 0, BASE + h, 0, elevator);
+  elevCab = new THREE.Group(); elevator.add(elevCab);
+  box(1.2, 0.08, 1.2, M.white, 0, 0, 0, elevCab); box(1.2, 0.08, 1.2, M.white, 0, 2.0, 0, elevCab);
+  box(1.2, 2.0, 0.05, M.white, 0, 1.0, 0.58, elevCab); box(0.05, 2.0, 1.2, M.white, 0.58, 1.0, 0, elevCab);
+  box(0.8, 0.04, 0.04, M.lamp, 0, 1.95, 0, elevCab, { noCast: true });
+  elevCab.position.y = BASE + 0.05;
+}
 function rebuild() {
   const openName = S.open && LEVELS.length && FLOORS[S.floor] ? FLOORS[S.floor].name : null;
   AG.forEach(r => r.bub.remove()); AG.clear();
@@ -739,6 +778,7 @@ function rebuild() {
   FLOORS.forEach(buildLevel);
   allLevels().forEach(L => { const b = document.createElement('button'); b.className = 'ftag'; b.addEventListener('click', () => openFloor(FLOORS.indexOf(L.f))); $('ov').appendChild(b); L.tag = b; });
   roof.position.y = BASE + NF * H; HOME.target.y = Math.max(3, NF * H * 0.45);
+  buildElevator();
   ALL().forEach(a => makeAgent(a, 0));
   if (openName) { const k = FLOORS.findIndex(f => f.name === openName); if (k < 0) closeFloor(); else S.floor = k; }
   else if (S.floor >= FLOORS.length) S.floor = 0;
@@ -848,7 +888,7 @@ function renderConnect() {
 }
 
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-approve],[data-deny],[data-chat],[data-floor],[data-home],[data-sel],[data-wake],[data-pause],[data-closechat],[data-closeconn],[data-unsel],[data-ping],[data-q],[data-routine],[data-forget],[data-wait],[data-ntfy],[data-copyprompt],[data-stop],[data-fork],[data-kind],[data-closehire],[data-mission],[data-briefclose],[data-conv],[data-cmodel],[data-closechats],[data-newchat],[data-review],[data-budget]'); if (!t) return;
+  const t = e.target.closest('[data-approve],[data-deny],[data-chat],[data-floor],[data-home],[data-sel],[data-wake],[data-pause],[data-closechat],[data-closeconn],[data-unsel],[data-ping],[data-q],[data-routine],[data-forget],[data-wait],[data-ntfy],[data-copyprompt],[data-stop],[data-fork],[data-kind],[data-closehire],[data-mission],[data-briefclose],[data-conv],[data-cmodel],[data-closechats],[data-newchat],[data-review],[data-budget],[data-look]'); if (!t) return;
   const d = t.dataset;
   if (d.closeconn) { if (e.target === t || t.tagName === 'BUTTON') $('connectWrap').innerHTML = ''; return; }
   if (d.approve) approve(d.approve);
@@ -859,6 +899,7 @@ document.addEventListener('click', (e) => {
   else if (d.kind) { S.hireKind = d.kind; renderHire(); }
   else if (d.mission) openMission(d.mission);
   else if (d.review) openReview(d.review);
+  else if (d.look) openLook(d.look);
   else if (d.budget) api('/api/settings', { budget: +d.budget }).then(() => { S.hub.settings.budget = +d.budget; renderConnect(); }).catch(toastErr);
   else if (d.conv) { S.chatsSel = d.conv; S.chatsMsgs = null; S.chatsLen = -1; renderChats(); loadConv(d.conv); }
   else if (d.newchat) { S.chatsSel = null; renderChats(); }
@@ -929,6 +970,97 @@ canvas.addEventListener('pointerup', e => {
 });
 
 /* ================= look ================= */
+// --- sun over Moscow from the real time; night comes by itself unless the theme was picked by hand
+function sunState(date) {
+  const doy = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 864e5), rad = Math.PI / 180;
+  const decl = 23.44 * Math.sin(2 * Math.PI * (284 + doy) / 365) * rad, lat = 55.75 * rad;
+  const solar = date.getUTCHours() + date.getUTCMinutes() / 60 + 37.62 / 15, ha = (solar - 12) * 15 * rad;
+  const el = Math.asin(Math.sin(lat) * Math.sin(decl) + Math.cos(lat) * Math.cos(decl) * Math.cos(ha));
+  const az = Math.atan2(Math.sin(ha), Math.cos(ha) * Math.sin(lat) - Math.tan(decl) * Math.cos(lat));
+  return { el, az };
+}
+function updateSun() {
+  const { el, az } = sunState(new Date()), deg = el * 180 / Math.PI;
+  if (store.get('office-dark') == null && S.dark !== (deg < -3)) { S.dark = deg < -3; return applyDark(); }
+  const e = Math.max(el, 0.12);
+  sun.position.set(-Math.sin(az) * Math.cos(e) * 70, Math.sin(e) * 70, Math.cos(az) * Math.cos(e) * 70);
+  if (!S.dark) { sun.intensity = 0.55 + 0.8 * Math.min(1, Math.max(0, Math.sin(el) * 2.5)); sun.color.set(deg < 12 ? '#ffd2a1' : '#fff3e2'); }
+}
+function applySeason() {
+  const w = S.live && S.hub && S.hub.weather, m = new Date().getMonth();
+  const winter = !!w && w.temp != null && w.temp <= 1 && [10, 11, 0, 1, 2].includes(m);
+  if (S.winter === winter) return; S.winter = winter;
+  M.grass.color.set(winter ? '#e4eae8' : '#c6dcb0');
+  if (!TREES.crowns) return;
+  [TREES.crowns, TREES.pines].forEach((im, i) => { const src = TREES.base[i], dst = im.instanceColor.array;
+    for (let j = 0; j < dst.length; j++) dst[j] = winter ? src[j] + (0.92 - src[j]) * 0.55 : src[j];
+    im.instanceColor.needsUpdate = true; });
+}
+// --- a Grok bot carries messages over the glass corridor
+const walker = new THREE.Group(); scene.add(walker); walker.visible = false;
+{ const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.32, 2), new THREE.MeshStandardMaterial({ color: KIND.grok.color, roughness: 0.5, flatShading: true })); b.position.y = 0.4; b.castShadow = true; walker.add(b);
+  [-0.1, 0.1].forEach(x => { const e = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff })); e.position.set(x, 0.45, 0.3); walker.add(e); }); }
+function walkerTick(t) {
+  const w = S.walker; if (!w || !ANNEX_L) { walker.visible = false; return; }
+  const k = (t - w.t0) / 4000; if (k > 1) { walker.visible = false; S.walker = null; return; }
+  const from = AX - W / 2 + 0.3, to = BX + W / 2 - 0.3, x = w.dir > 0 ? from + (to - from) * k : to + (from - to) * k;
+  walker.visible = true; walker.position.set(x, BASE + 0.25 + Math.abs(Math.sin(t / 110)) * 0.1, AZ); walker.rotation.y = w.dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+}
+// --- confetti when a goal is done or a branch is merged
+const confetti = (() => { const n = 180, im = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.14, 0.22), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), n);
+  const cols = ['#e5484d', '#f2b632', '#22a55b', '#3b82f6', '#8b5cf6', '#e9835a'], c = new THREE.Color();
+  for (let i = 0; i < n; i++) im.setColorAt(i, c.set(cols[i % cols.length]));
+  im.visible = false; im.userData.v = []; scene.add(im); return im; })();
+function confettiTick(t) {
+  const cf = S.confetti; if (!cf) return;
+  const f = FLOORS.find(x => x.name === cf.floor), L = f && f.L; if (!L) { S.confetti = null; return; }
+  const k = (t - cf.t0) / 1000, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+  if (!cf.v) cf.v = Array.from({ length: 180 }, () => [(Math.random() - 0.5) * 9, 4 + Math.random() * 4, (Math.random() - 0.5) * 7, Math.random() * 6]);
+  if (k > 4.5) { confetti.visible = false; S.confetti = null; return; }
+  confetti.visible = true;
+  const ox = (L.lvl < 0 ? AX : BX), oy = L.base + 1.5;
+  cf.v.forEach(([vx, vy, vz, sp], i) => { e.set(k * sp, k * sp * 0.7, 0); q.setFromEuler(e);
+    m4.compose(new THREE.Vector3(ox + vx * k * 0.6, oy + vy * k - 4.9 * k * k * 0.5, BZ + vz * k * 0.6), q, new THREE.Vector3(1, 1, 1)); confetti.setMatrixAt(i, m4); });
+  confetti.instanceMatrix.needsUpdate = true;
+}
+// --- stand-up before a new goal, confetti when it is reached
+function boardEvents(st) {
+  const prevB = S.prevBoards || {}, now = performance.now();
+  Object.entries(st.boards || {}).forEach(([name, b]) => {
+    const was = prevB[name];
+    if (was && b.goal && b.goal !== was.goal) {
+      const team = [...AG.values()].filter(r => FLOORS[r.a.fi] && FLOORS[r.a.fi].name === name);
+      team.forEach((r, i) => { const an = i / team.length * Math.PI * 2, x = 5.4 + Math.cos(an) * 1.3, z = 1.4 + Math.sin(an) * 1.3;
+        r.goal = { x, z, ry: Math.atan2(x - 5.4, z - 1.4) }; r.standupUntil = now + 8000; });
+    }
+    if (was && was.status !== 'done' && b.status === 'done') S.confetti = { floor: name, t0: now };
+  });
+  S.prevBoards = JSON.parse(JSON.stringify(st.boards || {}));
+  applySeason();
+  // a Grok bot reported something new: it walks over the corridor
+  const lens = S.grokLens || {};
+  (st.agents || []).filter(h => h.kind === 'grok').forEach(h => { if (lens[h.id] != null && h.chatLen > lens[h.id]) S.walker = { dir: 1, t0: now }; lens[h.id] = h.chatLen; });
+  S.grokLens = lens;
+}
+function openLook(id) {
+  const a = byId(id); if (!a) return;
+  const look = Object.assign({ color: KIND[a.kind].color, hat: a.crown ? 'crown' : '' }, a.look || {});
+  const colors = ['#e9835a', '#2bb59a', '#2b2d33', '#6b8ff5', '#7b61ff', '#e5484d', '#f2b632', '#22a55b', '#ec4899', '#94a3b8'];
+  const hats = [['', 'нет'], ['crown', 'корона'], ['cap', 'кепка'], ['tophat', 'цилиндр'], ['ears', 'ушки'], ['phones', 'наушники']];
+  S.lookDraft = look;
+  const draw = () => {
+    $('hireWrap').innerHTML = `<div class="scrim" data-closehire="1"><form class="card modal hire" id="lookForm" role="dialog" aria-modal="true" aria-labelledby="lkTitle"><h2 id="lkTitle">Вид агента</h2>
+      <label for="lkName">Имя</label><input id="lkName" maxlength="30" value="${esc(S.lookName != null ? S.lookName : a.name)}">
+      <label>Цвет</label><div class="opts" role="group" aria-label="Цвет">${colors.map(c => `<button type="button" class="btn ghost" data-lkcolor="${c}" aria-pressed="${c === S.lookDraft.color}" aria-label="${c}" style="width:34px;padding:0;background:${c};${c === S.lookDraft.color ? 'outline:3px solid var(--ink);outline-offset:2px' : ''}"></button>`).join('')}</div>
+      <label>Шапка</label><div class="opts" role="group" aria-label="Шапка">${hats.map(([v, n]) => `<button type="button" class="btn ghost" data-lkhat="${v}" aria-pressed="${v === S.lookDraft.hat}">${n}</button>`).join('')}</div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button type="button" class="btn ghost" data-closehire="1">Отмена</button><button class="btn" type="submit">Сохранить</button></div></form></div>`;
+    $('hireWrap').querySelectorAll('[data-lkcolor]').forEach(b => b.onclick = () => { S.lookName = $('lkName').value; S.lookDraft.color = b.dataset.lkcolor; draw(); });
+    $('hireWrap').querySelectorAll('[data-lkhat]').forEach(b => b.onclick = () => { S.lookName = $('lkName').value; S.lookDraft.hat = b.dataset.lkhat; draw(); });
+    $('lookForm').onsubmit = (e) => { e.preventDefault();
+      api('/api/look', { id, name: $('lkName').value.trim(), color: S.lookDraft.color, hat: S.lookDraft.hat }).then(() => { $('hireWrap').innerHTML = ''; S.lookName = null; }).catch(toastErr); };
+  };
+  S.lookName = null; draw();
+}
 function applyDark() {
   const d = S.dark; document.body.dataset.dark = d ? '1' : '0';
   $('darkBtn').setAttribute('aria-pressed', String(d)); $('darkLbl').textContent = d ? 'Светлая' : 'Тёмная';
@@ -937,6 +1069,7 @@ function applyDark() {
   sun.intensity = d ? 0.35 : 1.3; sun.color.set(d ? '#9fb0ff' : '#fff3e2');
   M.glass.emissive.set(d ? '#ffc777' : '#000000'); M.glass.emissiveIntensity = d ? 0.32 : 0;
   M.lamp.color.set(d ? '#ffe6a6' : '#e8e4da');
+  updateSun();
   renderUI();
 }
 function resize() { const w = innerWidth, h = innerHeight, a = w / h, v = w < 760 ? 70 : 52;
@@ -991,6 +1124,10 @@ function frameBody(t) {
       v3.set(0, 2.4, 0); dr.g.localToWorld(v3); drone.position.lerp(v3, k);
     } else if (S.drone) S.drone = null;
     animateCat(t);
+    if (elevCab) { const goal = S.elev && t - S.elev.t0 < 6000 ? S.elev.y + 0.33 : BASE + 0.05; elevCab.position.y += (goal - elevCab.position.y) * 0.05; }
+    walkerTick(t); confettiTick(t);
+    if (!S.sunAt || t - S.sunAt > 60000) { S.sunAt = t; updateSun(); }
+    AG.forEach(r => { if (r.standupUntil && t > r.standupUntil) { r.standupUntil = 0; place(r.a); } });
     weatherTick();
     rotors.forEach(r => r.rotation.y = t / 30);
     const cz = PZ + 24 - ((t / 25) % 1000) / 1000 * 26; movingCar.position.z = cz;
@@ -1020,7 +1157,7 @@ function detailActs(a) {
   const yesNo = `<div style="display:flex;gap:6px"><button class="btn" style="flex:1" data-approve="${a.id}">Одобрить</button><button class="btn ghost" style="flex:1" data-deny="${a.id}">Отклонить</button></div>`;
   if (!S.live) return (a.status === 'waiting' ? yesNo : '') + `<button class="btn" data-chat="${a.id}">Открыть чат</button>` + (a.status === 'resting' ? `<button class="btn ghost" data-wake="${a.id}">Разбудить</button>` : `<button class="btn ghost" data-ping="${a.id}">Пинг</button>`);
   return `<button class="btn" data-chat="${a.id}">${a.managed ? 'Чат' : 'История и чат'}</button>` + (a.running ? `<button class="btn ghost" data-stop="${a.id}">Остановить</button>` : '') + (a.status !== 'waiting' ? '' : a.approval ? yesNo : '<p class="muted" style="margin:0;font-size:12px">Ответь в терминале или Vibe Island. Чтобы одобрять отсюда, держи офис открытым, когда агент спрашивает.</p>')
-    + `<button class="btn ghost" data-forget="${a.id}">Убрать из офиса</button>`;
+    + `<button class="btn ghost" data-look="${a.id}">Вид</button><button class="btn ghost" data-forget="${a.id}">Убрать из офиса</button>`;
 }
 const chatHtml = (t) => esc(t).replace(/`([^`\n]+)`/g, '<code>$1</code>');
 function toastErr(e) { log('Офис', e.message || String(e), 'error'); renderUI(); }
@@ -1051,7 +1188,7 @@ function renderChatLive(soft) {
   if (keep !== null) { $('chatIn').value = keep; $('chatIn').focus(); }
   const f = $('chatForm'); if (f) f.onsubmit = (e) => { e.preventDefault(); const v = $('chatIn').value.trim(); if (!v) return; $('chatIn').value = '';
     if (f.dataset.forkform) api('/api/fork', { id: a.id, text: v }).then(j => openChat(j.id)).catch(toastErr);
-    else if (f.dataset.grokform) api('/api/grok/send', { id: a.id, text: v }).then(() => { S.drone = { id: a.id, t0: performance.now() }; loadChat(a.id); }).catch(toastErr);
+    else if (f.dataset.grokform) api('/api/grok/send', { id: a.id, text: v }).then(() => { S.walker = { dir: -1, t0: performance.now() }; loadChat(a.id); }).catch(toastErr);
     else api('/api/send', { id: a.id, text: v }).then(() => { S.drone = { id: a.id, t0: performance.now() }; loadChat(a.id); }).catch(toastErr); };
 }
 const KIND_RU = { claude: 'Клод · Claude Code', codex: 'Кодекс · Codex', antigravity: 'Джемини · Antigravity' };
@@ -1366,18 +1503,25 @@ function applyHub(st) {
     const a = prev.get(h.id) || { id: h.id, seatKind: null, use: 0 };
     a.prevStatus = a.status;
     Object.assign(a, { name: h.name, kind: KIND[h.kind] ? h.kind : 'claude', status: h.status, task: h.task, since: h.since * 1000, steps: h.steps, tasks: h.tasks,
-      events: h.events, xp: h.xp, badges: h.badges, errors: h.errors, managed: h.managed, running: h.running, chatLen: h.chatLen, forkable: h.forkable, hist: h.hist && h.hist.length > 1 ? h.hist : [0, 0], role: h.kind === 'grok' ? 'Grok Bot · команда ' + h.project : h.where, approval: h.approval, fi });
+      events: h.events, look: h.look, xp: h.xp, badges: h.badges, errors: h.errors, managed: h.managed, running: h.running, chatLen: h.chatLen, forkable: h.forkable, hist: h.hist && h.hist.length > 1 ? h.hist : [0, 0], role: h.kind === 'grok' ? 'Grok Bot · команда ' + h.project : h.where, approval: h.approval, fi });
     floors[fi].agents.push(a);
   });
   soundsFor(new Map([...prev.values()].map(a => [a.id, a.prevStatus])));
   LOG.length = 0; (st.log || []).forEach(l => LOG.push(l));
-  const sig = (fl) => fl.map(f => f.name + ':' + f.agents.map(a => a.id).join(',')).join('|');
+  const sig = (fl) => fl.map(f => f.name + (f.annex ? '*' : '')).join('|');
   if (!LEVELS.length || sig(floors) !== sig(FLOORS)) { FLOORS = floors; rebuild(); }
   else {
-    floors.forEach((f, i) => { const old = FLOORS[i]; f.n = old.n; f.L = old.L; f.L.f = f; });
+    floors.forEach((f, i) => { const old = FLOORS[i]; f.n = old.n; f.L = old.L; f.L.f = f; f.agents.forEach(a => { a.fi = i; }); });
     FLOORS = floors;
-    ALL().forEach(a => { if (a.prevStatus !== a.status) place(a); });
+    const ids = new Set(ALL().map(a => a.id));
+    AG.forEach((r, id) => {        // gone, moved to another floor, or restyled: take the figure away
+      if (!ids.has(id) || r.floorL !== FLOORS[r.a.fi].L || r.lookSig !== JSON.stringify(r.a.look || {})) {
+        r.bub.remove(); if (r.g.parent) r.g.parent.remove(r.g); r.g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); AG.delete(id);
+      }
+    });
+    ALL().forEach(a => { if (!AG.has(a.id)) { a.seatKind = null; makeAgent(a, 0, !prev.has(a.id)); } else if (a.prevStatus !== a.status) place(a); });
   }
+  boardEvents(st);
   if (S.sel && !byId(S.sel)) S.sel = null;
 }
 function connectStream() {

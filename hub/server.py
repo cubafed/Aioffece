@@ -987,7 +987,7 @@ def snapshot():
                         'managed': bool(a.get('managed')), 'running': a['id'] in RUNS, 'chatLen': len(a.get('chat') or []),
                         'forkable': a['src'] == 'claude' and not a.get('managed') and a.get('host') == LOCAL_HOST,
                         'xp': a['tasks'] * 10 + a['steps'], 'badges': badges(a), 'errors': a.get('errors', 0),
-                        'chatOnly': bool(a.get('chatOnly')), 'last': a['last'], 'scope': a.get('scope', '')})
+                        'chatOnly': bool(a.get('chatOnly')), 'last': a['last'], 'scope': a.get('scope', ''), 'look': a.get('look') or {}})
         pub.sort(key=lambda x: x['name'])
         ntfy = {'on': settings['ntfyOn'], 'state': ntfy_state['state'], 'last': ntfy_state['last'],
                 'url': settings['ntfyServer'].rstrip('/') + '/' + settings['ntfyTopic'] if settings['ntfyTopic'] else ''}
@@ -1289,6 +1289,21 @@ class Handler(BaseHTTPRequestHandler):
                 proc.finish(int(body.get('rc') or 0))
                 with lock:
                     RJOBS.pop(proc.id, None)
+            return self._json(200, {'ok': True})
+        if url.path == '/api/look':
+            name, color, hat = str(body.get('name') or '').strip()[:30], str(body.get('color') or ''), str(body.get('hat') or '')
+            if color and not re.match(r'^#[0-9a-fA-F]{6}$', color):
+                return self._json(400, {'error': 'цвет в виде #rrggbb'})
+            if hat not in ('', 'crown', 'cap', 'tophat', 'ears', 'phones'):
+                return self._json(400, {'error': 'неизвестная шапка'})
+            with lock:
+                a = agents.get(str(body.get('id') or ''))
+                if not a:
+                    return self._json(404, {'error': 'нет такого агента'})
+                a['look'] = {'color': color, 'hat': hat}
+                if name:
+                    a['name'] = name
+                mark_dirty()
             return self._json(200, {'ok': True})
         if url.path == '/api/clienterror':
             print('[page error]', time.strftime('%H:%M:%S'), str(body.get('msg') or '')[:3000], flush=True)
