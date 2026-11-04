@@ -76,6 +76,30 @@ def short(s, n=80):
     return s if len(s) <= n else s[:n - 1] + '…'
 
 
+def human_prompt(raw):
+    """Codex sends answers to its own questions as a JSON prompt ([{"questionItemId": …, "answers": …}]): show the answers."""
+    t = str(raw or '').strip()
+    if not t.startswith(('[{', '{')):
+        return raw
+    try:
+        data = json.loads(t)
+    except ValueError:
+        return raw
+    found = []
+
+    def walk(x, key=''):
+        if isinstance(x, dict):
+            for k, v in x.items():
+                walk(v, k)
+        elif isinstance(x, list):
+            for v in x:
+                walk(v, key)
+        elif isinstance(x, str) and key.lower() in ('answer', 'answers', 'text', 'label', 'value', 'content'):
+            found.append(x)
+    walk(data)
+    return 'Ответ на вопрос: ' + ', '.join(found) if found else 'Ответ на вопрос агента'
+
+
 def base(p):
     p = str(p or '').rstrip('/')
     return os.path.basename(p) or p
@@ -121,6 +145,14 @@ def chat_add(a, who, text):
         chat = a.setdefault('chat', [])
         chat.append({'who': who, 'text': text[:6000], 't': hhmm()})
         del chat[:-300]
+
+
+def last_bot(a):
+    """The agent's latest answer, one paragraph, for the console view."""
+    for m in reversed(a.get('chat') or []):
+        if m.get('who') == 'bot':
+            return short(m.get('text'), 240)
+    return ''
 
 
 def mark_dirty():
@@ -220,7 +252,7 @@ def handle_hook(src, p):
         elif ev == 'UserPromptSubmit' and a.get('managed'):
             set_status(a, 'working')      # the office already knows the task it sent; the hook sees it with the role prompt glued on
         elif ev == 'UserPromptSubmit':
-            a['prompt'] = short(p.get('prompt'), 110)
+            a['prompt'] = short(human_prompt(p.get('prompt')), 110)
             a['tasks'] += 1
             set_status(a, 'working', a['prompt'] or 'Думает')
             add_log(a['name'], 'новая задача: ' + short(a['prompt'], 70), 'working')
@@ -754,14 +786,16 @@ def start_mission(proj, goal, kind='claude'):
     host, path = place_of(proj)
     if not path:
         raise RuntimeError('у этажа %s нет папки ни на Маке, ни на подключённом сервере' % proj)
+    if len(goal.split()) < 2:
+        raise RuntimeError('опиши цель хотя бы парой слов')
     b = board_of(proj)
-    b.update(goal=short(goal, 1000), status='active', report='', wakes=0)
     lead = agents.get(b['lead'] or '')
+    if not (lead and lead.get('managed')) and (kind not in ('claude', 'codex') or kind not in host_kinds(host)):
+        raise RuntimeError('%s недоступен там, где лежит проект (%s)' % (kind, host))   # checked before the board turns active
+    b.update(goal=short(goal, 1000), status='active', report='', wakes=0)
     if lead and lead.get('managed'):
         deliver(lead, 'Новая цель команды: ' + goal, 'Ты')
         return lead
-    if kind not in ('claude', 'codex') or kind not in host_kinds(host):
-        raise RuntimeError('%s недоступен там, где лежит проект (%s)' % (kind, host))
     lead = hire(kind, path, '', name='Диспетчер·' + proj, project=proj, mission={'role': 'lead'}, host=host,
                 system=LEAD_PROMPT.format(proj=proj, goal=goal, team=team_text(host)))
     b['lead'] = lead['id']
@@ -987,7 +1021,7 @@ def snapshot():
                         'managed': bool(a.get('managed')), 'running': a['id'] in RUNS, 'chatLen': len(a.get('chat') or []),
                         'forkable': a['src'] == 'claude' and not a.get('managed') and a.get('host') == LOCAL_HOST,
                         'xp': a['tasks'] * 10 + a['steps'], 'badges': badges(a), 'errors': a.get('errors', 0),
-                        'chatOnly': bool(a.get('chatOnly')), 'last': a['last'], 'scope': a.get('scope', ''), 'look': a.get('look') or {}})
+                        'chatOnly': bool(a.get('chatOnly')), 'last': a['last'], 'reply': last_bot(a), 'scope': a.get('scope', ''), 'look': a.get('look') or {}})
         pub.sort(key=lambda x: x['name'])
         ntfy = {'on': settings['ntfyOn'], 'state': ntfy_state['state'], 'last': ntfy_state['last'],
                 'url': settings['ntfyServer'].rstrip('/') + '/' + settings['ntfyTopic'] if settings['ntfyTopic'] else ''}
@@ -1326,6 +1360,17 @@ class Handler(BaseHTTPRequestHandler):
                     mark_dirty()
             except (RuntimeError, OSError, subprocess.SubprocessError) as e:
                 return self._json(409, {'error': str(e)})
+            return self._json(200, {'ok': True})
+        if url.path == '/api/mission' and body.get('cancel'):
+            with lock:
+                b = boards.get(str(body.get('project') or ''))
+                if b:
+                    run = RUNS.get(b['lead'] or '')
+                    if run:
+                        run['stopped'] = True
+                        run['proc'].terminate()
+                    b.update(goal='', status='', report='', wakes=0)
+                    mark_dirty()
             return self._json(200, {'ok': True})
         if url.path in ('/api/mission', '/api/board', '/api/room'):
             proj, text = str(body.get('project') or ''), str(body.get('text') or '').strip()[:2000]

@@ -51,6 +51,54 @@ body[data-skin="nii"]{--panel:rgba(242,232,210,.82);--panel-strong:rgba(246,238,
 #pal li small{margin-left:auto;color:var(--muted)}
 #pal li[aria-selected="true"]{background:var(--chip);box-shadow:inset 0 0 0 1px var(--rim)}
 #pal .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;width:62px;flex:none}
+/* ---- console (Пульт): the list comes first, the office stays alive behind it */
+#scene{transition:filter .5s ease}
+body.pult #scene{filter:blur(10px) saturate(.85) brightness(.82)}
+body.pult .left,body.pult .right,body.pult .act,body.pult .brief,body.pult .ftag,body.pult .bub,body.pult .say{display:none!important}
+.seg{display:flex;padding:3px;gap:2px;border-radius:12px}
+.seg button{border:0;background:transparent;font:inherit;font-size:13px;font-weight:600;color:var(--muted);padding:0 12px;min-height:30px;border-radius:9px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--btn);color:var(--btn-ink)}
+#pult{position:fixed;z-index:4;top:calc(env(safe-area-inset-top,0px) + 72px);bottom:calc(env(safe-area-inset-bottom,0px) + 70px);left:16px;right:324px;overflow:auto;padding:2px 4px 16px;scrollbar-width:thin}
+#pult .card{position:relative;animation:none!important;transition:none!important}
+@starting-style{#pult .card{opacity:1;translate:0 0;filter:none}}
+.brand .seg{background:var(--chip);margin-left:4px}
+body.pult .counts{display:none!important}
+.viewmenu{position:absolute!important}
+body.pult .ctl{display:none!important}
+#pult .bar{display:flex;align-items:center;gap:10px;margin:0 0 12px;flex-wrap:wrap}
+#pult .bar h1{font-size:22px;margin:0 6px 0 2px;letter-spacing:-.01em}
+#pult .chips{display:flex;gap:4px;padding:3px}
+#pult .chips button{border:0;background:transparent;font:inherit;font-size:13px;color:var(--muted);padding:0 10px;min-height:28px;border-radius:8px;cursor:pointer}
+#pult .chips button[aria-pressed="true"]{background:var(--chip);color:var(--ink);box-shadow:inset 0 0 0 1px var(--rim)}
+#pult .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:12px;align-items:start}
+.pc{padding:0;overflow:hidden}
+.pc .ph{display:flex;align-items:center;gap:8px;padding:12px 14px 10px;border-bottom:1px solid var(--line)}
+.pc .ph b{font-size:15px}
+.pc .ph .sw{width:10px;height:10px;border-radius:3px;flex:none}
+.pc .ph .host{font-size:11px;color:var(--muted);background:var(--chip);border-radius:6px;padding:2px 6px}
+.pc .ph .sp{flex:1}
+.pc .ph .btn{min-height:28px;padding:0 10px;font-size:12px}
+.pc .mis{padding:9px 14px;border-bottom:1px solid var(--line);font-size:12.5px;display:grid;gap:6px}
+.pc .mis .pb{height:5px;border-radius:9px;background:var(--chip);overflow:hidden}.pc .mis .pb i{display:block;height:100%;background:var(--ok);border-radius:9px}
+.ar{display:grid;grid-template-columns:auto 1fr auto;gap:2px 10px;padding:10px 14px;border-bottom:1px solid var(--line);align-items:start}
+.ar:last-child{border-bottom:0}
+.ar .av{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;grid-row:span 3}
+.ar .nm{display:flex;align-items:center;gap:6px;min-width:0;font-weight:600;font-size:13.5px}
+.ar .nm small{font-weight:500;color:var(--muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ar .pill{font-size:11px;font-weight:600;border-radius:999px;padding:2px 8px;white-space:nowrap}
+.ar .tk{grid-column:2/4;font-size:12.5px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ar .rp{grid-column:2/4;font-size:12.5px;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ar .acts{grid-column:2/4;display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.ar .acts .btn{min-height:28px;padding:0 10px;font-size:12px}
+.ar form{display:flex;gap:6px;flex:1;min-width:180px}
+.ar form input{flex:1;min-width:0;border:0;background:var(--chip);border-radius:8px;padding:0 10px;font:inherit;font-size:12.5px;color:var(--ink);min-height:28px}
+.ar.waiting{background:linear-gradient(90deg,rgba(240,160,32,.14),transparent 70%)}
+.ar.error{background:linear-gradient(90deg,rgba(229,72,77,.12),transparent 70%)}
+.goalf{display:flex;gap:6px;padding:10px 14px;border-top:1px solid var(--line)}
+.goalf input{flex:1;min-width:0;border:0;background:var(--chip);border-radius:8px;padding:0 10px;font:inherit;font-size:12.5px;color:var(--ink);min-height:30px}
+.goalf select{border:0;background:var(--chip);border-radius:8px;font:inherit;font-size:12px;color:var(--ink);padding:0 6px}
+.pempty{padding:40px;text-align:center;color:var(--muted)}
+@media (max-width:900px){#pult{right:16px}#pult .grid{grid-template-columns:1fr}}
 .ftag.hover{background:rgba(255,255,255,.92)!important;color:#111}
 .say{position:absolute;transform:translate(-50%,-100%);pointer-events:none;max-width:200px;padding:5px 9px;border-radius:12px;font-size:11px;font-weight:600;line-height:1.3;color:var(--ink);
   background:rgba(255,255,255,.82);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 4px 14px rgba(0,0,0,.14);animation:pop .4s cubic-bezier(.34,1.56,.64,1)}
@@ -337,6 +385,7 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
   <div class="logo" aria-hidden="true">И</div>
   <div><b>ИИ-Офис</b><small class="muted">управляет Claude Code</small></div>
   <div class="live muted"><span class="dot"></span><span id="modeLbl">Демо-данные</span> <span id="clock">--:--</span></div>
+  <div class="seg" role="group" aria-label="Режим"><button id="modePult" aria-pressed="false">Пульт</button><button id="modeOffice" aria-pressed="true">Офис</button></div>
 </div>
 
 <div class="card counts" id="counts" aria-live="polite"></div>
@@ -407,6 +456,7 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
 </div>
 
 <div class="card" id="caption" hidden aria-live="polite"><b></b><span></span></div>
+<div id="pult" hidden></div>
 <div id="chatWrap"></div>
 <div id="palWrap"></div>
 <div id="connectWrap"></div>
@@ -891,6 +941,7 @@ const ST = { working: 'Работает', waiting: 'Ждёт тебя', done: '�
 const ava = (a, cls) => `<span class="ava ${cls || ''}" style="background:${KIND[a.kind].color};--c:${KIND[a.kind].color}" aria-hidden="true"><i></i></span>`;
 function renderUI() {
   $('floorsN').textContent = FLOORS.length;
+  renderPult();
   $('hireBtn').hidden = !S.live; $('chatsBtn').hidden = !S.live; renderLimits(); renderBrief(); paintSound(); renderChats(true);
   if (S.live && S.hub.weather && S.hub.weather.temp != null) $('modeLbl').textContent = 'Live · Москва ' + (S.hub.weather.temp > 0 ? '+' : '') + Math.round(S.hub.weather.temp) + '°';
   if (S.live) { const a = S.sel && byId(S.sel); $('cmdWho').textContent = a && a.managed ? a.name : 'новому агенту'; }
@@ -1017,6 +1068,68 @@ $('tBoard').onclick = () => { S.tab = 'board'; renderUI(); };
 $('finToggle').onclick = () => { S.finOpen = !S.finOpen; $('finToggle').setAttribute('aria-expanded', String(S.finOpen)); $('finToggle').style.transform = S.finOpen ? '' : 'rotate(180deg)'; renderUI(); };
 $('connectBtn').onclick = renderConnect;
 $('hireBtn').onclick = () => openHire('');
+// ---- Пульт: every session in one list, grouped by project, answer and approve in place
+S.pult = store.get('office-pult') !== '0'; S.pf = 'all';
+function setPult(on) { S.pult = on; store.set('office-pult', on ? '1' : '0'); document.body.classList.toggle('pult', on); $('modePult').setAttribute('aria-pressed', String(on)); $('modeOffice').setAttribute('aria-pressed', String(!on)); if (on) closeFloor(); renderUI(); }
+$('modePult').onclick = () => setPult(true); $('modeOffice').onclick = () => setPult(false);
+const ORDER = { waiting: 0, error: 1, working: 2, done: 3, resting: 4 };
+const PILL = { working: ['Работает', 'rgba(34,165,91,.16)', 'var(--ok)'], waiting: ['Ждёт тебя', 'rgba(240,160,32,.2)', '#b86e00'], error: ['Застрял', 'rgba(229,72,77,.16)', 'var(--err)'], done: ['Готово', 'rgba(59,130,246,.15)', 'var(--done)'], resting: ['Отдыхает', 'var(--chip)', 'var(--muted)'] };
+const agoTxt = (ms) => { const m = Math.max(0, Math.round((Date.now() - ms) / 60000)); return m < 1 ? 'только что' : m < 60 ? m + ' мин' : Math.floor(m / 60) + ' ч ' + (m % 60) + ' мин'; };
+function agentRow(a) {
+  const k = KIND[a.kind] || KIND.claude, pl = PILL[a.status] || PILL.resting;
+  const acts = [];
+  if (a.status === 'waiting') acts.push(a.approval ? `<button class="btn" data-approve="${a.id}">Одобрить</button><button class="btn ghost" data-deny="${a.id}">Отклонить</button>` : '<span class="muted" style="font-size:12px">ответь в терминале или Vibe Island</span>');
+  if (a.managed && a.running) acts.push(`<button class="btn ghost" data-stop="${a.id}">Стоп</button>`);
+  if (a.managed) acts.push(`<form data-pultsend="${a.id}"><input name="t" data-pin="${a.id}" placeholder="Ответить ${esc(a.name)}…" autocomplete="off"><button class="btn ghost" type="submit">→</button></form>`);
+  acts.push(`<button class="btn ghost" data-chat="${a.id}">Чат</button>`);
+  return `<div class="ar ${a.status}"><div class="av" style="background:${k.color}" aria-hidden="true">${esc((k.label || a.kind)[0])}</div>
+    <div class="nm">${esc(a.name)} <small>${esc(k.label || a.kind)}${a.where ? ' · ' + esc(a.where) : ''}</small></div>
+    <span class="pill" style="background:${pl[1]};color:${pl[2]}">${pl[0]} · ${agoTxt(a.since)}</span>
+    <div class="tk">${esc(a.task || '')}</div>${a.reply ? `<div class="rp">${esc(a.reply)}</div>` : ''}<div class="acts">${acts.join('')}</div></div>`;
+}
+function renderPult() {
+  const el = $('pult'); el.hidden = !S.pult; document.body.classList.toggle('pult', !!S.pult);
+  if (!S.pult) return;
+  const focus = document.activeElement && el.contains(document.activeElement) && document.activeElement.dataset.pin ? { id: document.activeElement.dataset.pin, v: document.activeElement.value, s: document.activeElement.selectionStart } : null;
+  if (focus) return;            // never rebuild under the user's fingers; the next update after they send will refresh
+  const goalVals = {}; el.querySelectorAll('[data-goalin]').forEach(i => { if (i.value) goalVals[i.dataset.goalin] = i.value; });
+  const all = ALL(), n = (st) => all.filter(a => a.status === st).length;
+  const pass = (a) => S.pf === 'all' || a.status === S.pf;
+  const chips = [['all', 'Все', all.length], ['waiting', 'Ждут', n('waiting')], ['working', 'Работают', n('working')], ['error', 'Застряли', n('error')], ['done', 'Готово', n('done')]]
+    .map(([k, l, c]) => `<button data-pf="${k}" aria-pressed="${S.pf === k}">${l} ${c}</button>`).join('');
+  const boards = (S.hub && S.hub.boards) || {}, kinds = S.hub ? [...new Set(Object.values(S.hub.hosts || {}).flat())].filter(k => k === 'claude' || k === 'codex') : [];
+  const cards = FLOORS.map((f, fi) => {
+    const list = f.agents.filter(pass).sort((x, y) => (ORDER[x.status] ?? 9) - (ORDER[y.status] ?? 9) || y.since - x.since);
+    const b = boards[f.name], br = b && b.branches ? b.branches.length : 0;
+    if (!list.length && (S.pf !== 'all' || f.annex)) return '';
+    const proj = S.hub && S.hub.projects.find(p => p.name === f.name), host = proj && proj.host ? (proj.host === S.hub.localHost ? 'Мак' : 'сервер') : '';
+    const pk = proj && proj.host ? kinds.filter(k => ((S.hub.hosts || {})[proj.host] || []).includes(k)) : [];
+    let mis = '';
+    if (b && b.goal) { const done = b.tasks.filter(t => t.status === 'done').length, tot = b.tasks.length;
+      mis = `<div class="mis"><div style="display:flex;gap:8px;align-items:baseline"><span style="flex:1"><b>Миссия:</b> ${esc(b.goal)} <span class="muted">· ${esc(b.status === 'done' ? 'выполнена' : b.status === 'paused' ? 'на паузе' : b.lead ? 'идёт' : 'Диспетчер не запущен')}</span></span><button class="btn ghost" style="min-height:24px;padding:0 8px;font-size:11.5px" data-cancelmis="${esc(f.name)}">Отменить</button></div>${tot ? `<div class="pb"><i style="width:${Math.round(done / tot * 100)}%"></i></div><div class="muted">${done} из ${tot} задач${br ? ' · веток на ревью: ' + br : ''}</div>` : ''}</div>`; }
+    const goalForm = f.annex || !S.live || !pk.length ? '' : `<form class="goalf" data-goalf="${fi}" data-k="${pk[0] || 'claude'}"><input data-goalin="${fi}" placeholder="Цель команде: что сделать в ${esc(f.name)}…" value="${esc(goalVals[fi] || '')}" autocomplete="off">${pk.length > 1 ? `<select name="k" aria-label="Диспетчер">${pk.map(k => `<option value="${k}">${KIND[k].label}</option>`).join('')}</select>` : ''}<button class="btn" type="submit">Поставить</button></form>`;
+    return `<section class="card pc"><div class="ph"><span class="sw" style="background:${f.color}"></span><b>${esc(f.annex ? 'Grok' : f.name)}</b>${host ? `<span class="host">${host}</span>` : ''}<span class="sp"></span>
+      ${br ? `<button class="btn ghost" data-review="${esc(b.branches[0].branch)}" data-rfi="${fi}">Ветки ${br}</button>` : ''}<button class="btn ghost" data-floor="${fi}" data-pultfloor="1">В офис</button></div>
+      ${mis}${list.map(agentRow).join('') || '<div class="pempty" style="padding:16px">Агентов пока нет</div>'}${goalForm}</section>`;
+  }).join('');
+  const html = `<div class="bar"><h1>Пульт</h1><div class="card chips">${chips}</div></div><div class="grid">${cards || '<div class="pempty">Под этот фильтр никого нет</div>'}</div>`;
+  if (html !== S.pultHtml) { S.pultHtml = html; el.innerHTML = html; }   // hub updates every second: touch the DOM only on real change
+}
+document.addEventListener('submit', (e) => {
+  const f = e.target;
+  if (f.dataset.pultsend) { e.preventDefault(); const inp = f.querySelector('input'), text = inp.value.trim(); if (!text) return;
+    inp.value = ''; inp.blur(); api('/api/send', { id: f.dataset.pultsend, text }).then(() => renderUI()).catch(toastErr); }
+  else if (f.dataset.goalf) { e.preventDefault(); const fl = FLOORS[+f.dataset.goalf], inp = f.querySelector('input'), text = inp.value.trim(); if (!fl || !text) return;
+    const sel = f.querySelector('select'), kind = sel ? sel.value : (f.dataset.k || 'claude');
+    if (text.split(/\s+/).length < 2) { toastErr(new Error('Опиши цель хотя бы парой слов')); return; }
+    inp.value = '';
+    api('/api/mission', { project: fl.name, text, kind }).then(() => { log('Ты', 'цель для ' + fl.name + ': ' + text, 'working'); renderUI(); }).catch(toastErr); }
+});
+$('pult').addEventListener('click', (e) => { const c = e.target.closest('[data-pf]'); if (c) { S.pf = c.dataset.pf; renderPult(); return; }
+  const cm = e.target.closest('[data-cancelmis]'); if (cm) { e.stopPropagation(); api('/api/mission', { project: cm.dataset.cancelmis, cancel: true }).then(() => log('Ты', 'отменил миссию: ' + cm.dataset.cancelmis, 'resting')).catch(toastErr); return; }
+  const r = e.target.closest('[data-rfi]'); if (r) S.floor = +r.dataset.rfi;   // openReview reads the current floor
+  if (e.target.closest('[data-pultfloor]')) setPult(false); }, true);
+document.addEventListener('focusout', (e) => { if (e.target.dataset && e.target.dataset.pin && !e.target.value) setTimeout(renderPult, 50); });
 $('viewBtn').onclick = (e) => { e.stopPropagation(); const m = $('viewMenu'); m.hidden = !m.hidden; $('viewBtn').setAttribute('aria-expanded', String(!m.hidden)); };
 document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.viewwrap')) { $('viewMenu').hidden = true; $('viewBtn').setAttribute('aria-expanded', 'false'); } });
 $('tourBtn').addEventListener('click', () => { $('viewMenu').hidden = true; });
@@ -1878,7 +1991,7 @@ function palCommands() {
   Object.entries(SKINS).forEach(([k, sk]) => cmds.push({ k: 'Скин', t: sk.name, sub: S.skin === k ? 'сейчас' : '', run: () => setSkin(k) }));
   cmds.push({ k: 'Вид', t: S.dark ? 'Светлая тема' : 'Тёмная тема', run: () => $('darkBtn').click() }, { k: 'Вид', t: 'Миниатюра вкл/выкл', run: () => $('miniBtn').click() },
     { k: 'Вид', t: 'Кино-тур', run: () => startTour() }, { k: 'Вид', t: S.sound ? 'Выключить звук' : 'Включить звук', run: () => $('soundBtn').click() },
-    { k: 'Офис', t: 'Подключить ИИ', run: () => renderConnect() });
+    { k: 'Офис', t: 'Подключить ИИ', run: () => renderConnect() }, { k: 'Режим', t: S.pult ? 'Офис (3D)' : 'Пульт', run: () => setPult(!S.pult) });
   if (S.live) cmds.push({ k: 'Офис', t: 'Нанять агента', run: () => openHire('') }, { k: 'Офис', t: 'Чаты', run: () => $('chatsBtn').click() }, { k: 'Офис', t: 'История расхода', run: () => openUsage() });
   return cmds;
 }
@@ -1956,7 +2069,7 @@ function applyHub(st) {
     const a = prev.get(h.id) || { id: h.id, seatKind: null, use: 0 };
     a.prevStatus = a.status;
     Object.assign(a, { name: h.name, kind: KIND[h.kind] ? h.kind : 'claude', status: h.status, task: h.task, since: h.since * 1000, steps: h.steps, tasks: h.tasks,
-      events: h.events, look: h.look, xp: h.xp, badges: h.badges, errors: h.errors, managed: h.managed, running: h.running, chatLen: h.chatLen, forkable: h.forkable, hist: h.hist && h.hist.length > 1 ? h.hist : [0, 0], role: h.kind === 'grok' ? 'Grok Bot · команда ' + h.project : h.where, approval: h.approval, fi });
+      events: h.events, look: h.look, xp: h.xp, badges: h.badges, errors: h.errors, managed: h.managed, running: h.running, chatLen: h.chatLen, forkable: h.forkable, hist: h.hist && h.hist.length > 1 ? h.hist : [0, 0], role: h.kind === 'grok' ? 'Grok Bot · команда ' + h.project : h.where, approval: h.approval, fi, reply: h.reply || '', project: h.project, where: h.where });
     floors[fi].agents.push(a);
   });
   soundsFor(new Map([...prev.values()].map(a => [a.id, a.prevStatus])));
