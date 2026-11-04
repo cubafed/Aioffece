@@ -19,18 +19,48 @@ AGY_ARGS = {'CommandLine': 'command', 'TargetFile': 'file_path', 'AbsolutePath':
 KEEP = ('command', 'description', 'file_path', 'notebook_path', 'path', 'pattern', 'query', 'url', 'cmd', 'subagent_type')
 
 
-def project_of(cwd):
+def root_of(cwd):
+    """The git root above cwd, else cwd itself."""
     d = os.path.abspath(cwd)
     while True:
         if os.path.exists(os.path.join(d, '.git')):
-            return os.path.basename(d) or d
+            return d
         parent = os.path.dirname(d)
         if parent == d:
-            break
+            return os.path.abspath(cwd)
         d = parent
-    if os.path.abspath(cwd) == os.path.expanduser('~'):
+
+
+def project_of(cwd):
+    root = root_of(cwd)
+    if root == os.path.expanduser('~'):
         return 'Дом'
-    return os.path.basename(cwd.rstrip('/')) or cwd
+    return os.path.basename(root.rstrip('/')) or root
+
+
+def last_reply(path):
+    """Text of the last assistant turn in a Claude transcript, read from the end of the file."""
+    size = os.path.getsize(path)
+    with open(path, 'rb') as f:
+        f.seek(max(0, size - 400000))
+        lines = f.read().decode('utf-8', 'replace').splitlines()
+    texts = []
+    for line in reversed(lines):
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        msg = e.get('message') or {}
+        content = msg.get('content')
+        if e.get('type') == 'user':
+            if isinstance(content, str) or any(isinstance(b, dict) and b.get('type') == 'text' for b in content or []):
+                break                      # the prompt that started this turn
+            continue                       # tool results
+        if e.get('type') == 'assistant':
+            for b in reversed(content if isinstance(content, list) else []):
+                if isinstance(b, dict) and b.get('type') == 'text' and b.get('text', '').strip():
+                    texts.append(b['text'].strip())
+    return '\n\n'.join(reversed(texts))
 
 
 def from_antigravity(p, event):
@@ -54,8 +84,15 @@ def main():
         p = from_antigravity(p, sys.argv[2] if len(sys.argv) > 2 else '')
     cwd = p.get('cwd') or ('' if src == 'antigravity' else os.getcwd())
     p['cwd'] = cwd
-    root = os.environ.get('CLAUDE_PROJECT_DIR') if src == 'claude' else None   # where the session started, not the current cd
-    p['project'] = project_of(root or cwd) if (root or cwd) else 'Antigravity'
+    start = os.environ.get('CLAUDE_PROJECT_DIR') if src == 'claude' else None   # where the session started, not the current cd
+    p['project'] = project_of(start or cwd) if (start or cwd) else 'Antigravity'
+    p['root'] = root_of(start or cwd) if (start or cwd) else ''
+    if p.get('hook_event_name') == 'Stop':
+        reply = p.get('last_assistant_message')
+        if not reply and src == 'claude' and p.get('transcript_path') and os.path.isfile(p['transcript_path']):
+            reply = last_reply(p['transcript_path'])
+        if isinstance(reply, str) and reply.strip():
+            p['reply'] = reply.strip()[-4000:]
     p['host'] = os.uname().nodename.split('.')[0]
     for big in ('tool_response', 'transcript_path', 'permission_suggestions'):
         p.pop(big, None)
@@ -67,7 +104,7 @@ def main():
     perm = p.get('hook_event_name') == 'PermissionRequest'
     req = urllib.request.Request(URL + '/api/hook?src=' + src, data=json.dumps(p).encode('utf-8'),
                                  headers={'Content-Type': 'application/json', 'X-Office': '1'})
-    with urllib.request.urlopen(req, timeout=135 if perm else 1.5) as r:
+    with urllib.request.urlopen(req, timeout=890 if perm else 2) as r:
         out = json.loads(r.read() or b'{}')
     decision = out.get('decision')
     if perm and decision in ('allow', 'deny'):
@@ -77,10 +114,11 @@ def main():
         sys.stdout.write(json.dumps({'hookSpecificOutput': {'hookEventName': 'PermissionRequest', 'decision': d}}))
 
 
-try:
-    main()
-except Exception:  # fail open: the office must never block or break an agent
-    pass
-if len(sys.argv) > 1 and sys.argv[1] == 'antigravity':
-    sys.stdout.write('{}')   # Antigravity expects a JSON object back from every hook
-sys.exit(0)
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception:  # fail open: the office must never block or break an agent
+        pass
+    if len(sys.argv) > 1 and sys.argv[1] == 'antigravity':
+        sys.stdout.write('{}')   # Antigravity expects a JSON object back from every hook
+    sys.exit(0)

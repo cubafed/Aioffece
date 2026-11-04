@@ -17,9 +17,16 @@ import secrets
 import threading
 import time
 import urllib.request
+import subprocess
+import sys
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import limits                                   # noqa: E402
+import runners                                  # noqa: E402
+from office_hook import project_of, root_of     # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEB = os.path.join(ROOT, 'web')
@@ -31,6 +38,8 @@ ALLOWED_HOSTS = {'127.0.0.1', 'localhost'}
 
 NAMES = {'claude': 'Клод', 'codex': 'Кодекс', 'grok': 'Грок', 'gemini': 'Джемини', 'antigravity': 'Джемини'}
 LOOK = {'antigravity': 'gemini'}   # which character the office draws for a source
+LOCAL_HOST = os.uname().nodename.split('.')[0]
+KINDS = ('claude', 'codex', 'antigravity')   # agents the office can run itself
 PALETTE = ['#22a55b', '#8b5cf6', '#f08c1a', '#3b82f6', '#14b8a6', '#e5484d', '#d946ef', '#0ea5e9', '#84cc16', '#f59e0b']
 HIST_LEN, HIST_STEP = 14, 300          # activity sparkline: 14 buckets of 5 minutes
 IDLE_AFTER, FORGET_AFTER = 15 * 60, 12 * 3600
@@ -42,9 +51,11 @@ agents = {}       # "src:session" -> agent
 projects = {}     # name -> {name, color, first, last}
 approvals = {}    # id -> {id, agent, decision, live, event}
 log = []          # newest first: [hh:mm, who, text, status]
-settings = {'approveWait': 60, 'ntfyOn': False, 'ntfyTopic': '', 'ntfyServer': 'https://ntfy.sh'}
+settings = {'approveWait': 60, 'agentProxy': '', 'ntfyOn': False, 'ntfyTopic': '', 'ntfyServer': 'https://ntfy.sh'}
 ntfy_state = {'state': 'off', 'last': None, 'since': '1h'}
 clients = []      # one queue per open SSE stream
+ALIAS = {}        # "src:session" of an office-run CLI session -> its office agent id
+RUNS = {}         # office agent id -> {proc, queue, stopped}
 dirty = threading.Event()
 
 
@@ -90,6 +101,14 @@ def hhmm(ts=None):
 def add_log(who, text, status):
     log.insert(0, [hhmm(), who, short(text, 120), status])
     del log[60:]
+
+
+def chat_add(a, who, text):
+    text = str(text or '').strip()
+    if text:
+        chat = a.setdefault('chat', [])
+        chat.append({'who': who, 'text': text[:6000], 't': hhmm()})
+        del chat[:-300]
 
 
 def mark_dirty():
@@ -154,10 +173,12 @@ def handle_hook(src, p):
     """Apply one hook event. Returns the approval dict for PermissionRequest, else None."""
     ev = agy_event(p) if src == 'antigravity' else (p.get('hook_event_name') or '')
     sid = str(p.get('session_id') or p.get('thread_id') or 'unknown')
-    key = src + ':' + sid
+    key = ALIAS.get(src + ':' + sid, src + ':' + sid)
     with lock:
         a = agents.get(key)
         if ev == 'SessionEnd':
+            if a and a.get('managed'):
+                return None
             if a:
                 close_approval(a, 'gone')
                 add_log(a['name'], 'закрыл сессию', 'resting')
@@ -170,6 +191,8 @@ def handle_hook(src, p):
         a['last'] = now
         a['events'] += 1
         ensure_project(a['project'])
+        if p.get('root') and p.get('host') == LOCAL_HOST:
+            projects[a['project']]['path'] = p['root']
         tool = p.get('tool_name') or ''
         if ev in ('PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'UserPromptSubmit', 'Stop', 'SessionStart') and a['approval']:
             close_approval(a, 'elsewhere')   # the prompt was answered in the terminal / Vibe Island
@@ -183,6 +206,8 @@ def handle_hook(src, p):
             a['tasks'] += 1
             set_status(a, 'working', a['prompt'] or 'Думает')
             add_log(a['name'], 'новая задача: ' + short(a['prompt'], 70), 'working')
+            if not a.get('managed'):
+                chat_add(a, 'user', p.get('prompt'))
         elif ev == 'PreToolUse':
             a['steps'] += 1
             a['hist'][-1] += 1
@@ -207,6 +232,8 @@ def handle_hook(src, p):
         elif ev == 'Stop':
             set_status(a, 'done', 'Готово: ' + (a['prompt'] or 'ответил'))
             add_log(a['name'], 'закончил', 'done')
+            if p.get('reply') and not a.get('managed'):
+                chat_add(a, 'bot', p['reply'])
         elif ev == 'StopFailure':
             set_status(a, 'error', 'Ход прервался из-за ошибки API')
             add_log(a['name'], 'застрял: ошибка API', 'error')
@@ -235,7 +262,10 @@ def decide(ap_id, decision):
 
 def wait_for_decision(ap):
     with lock:
-        wait = min(MAX_WAIT, int(settings.get('approveWait') or 0)) if clients else 0
+        if (agents.get(ap['agent']) or {}).get('managed'):
+            wait = 600       # an office-run agent has no terminal: only the office can answer it
+        else:
+            wait = min(MAX_WAIT, int(settings.get('approveWait') or 0)) if clients else 0
     if wait > 0:
         ap['event'].wait(wait)
     with lock:
@@ -244,6 +274,154 @@ def wait_for_decision(ap):
         ap['live'] = False        # nobody decided here: the terminal / Vibe Island takes over
         mark_dirty()
         return None
+
+
+# ---------- office-run agents: the hub starts the CLI itself and the chat is its stream ----------
+
+def link_session(a, sid):
+    """Hooks of the CLI session report as src:sid; point them at this office agent."""
+    a['managed']['sid'] = sid
+    a['managed'].pop('fork', None)
+    hk = a['src'] + ':' + sid
+    ALIAS[hk] = a['id']
+    dup = agents.pop(hk, None) if hk != a['id'] else None
+    if dup:
+        close_approval(dup, 'gone')
+
+
+def start_run(a, text):
+    m = a['managed']
+    sid = m.get('sid')
+    if a['src'] == 'claude' and not sid:
+        new_sid = str(uuid.uuid4())
+        cmd = runners.command('claude', text, None, new_sid)
+        link_session(a, new_sid)        # known before start, so its hooks never create a duplicate
+    else:
+        cmd = runners.command(a['src'], text, sid, fork=bool(m.get('fork')))
+    env = dict(os.environ, PATH='/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:' + os.path.expanduser('~/.local/bin'))
+    if settings.get('agentProxy'):        # e.g. the VPN's local proxy, for CLIs that ignore macOS VPN routing
+        for k in ('HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY', 'https_proxy', 'http_proxy', 'all_proxy'):
+            env[k] = settings['agentProxy']
+        env['NO_PROXY'] = env['no_proxy'] = '127.0.0.1,localhost'
+    proc = subprocess.Popen(cmd, cwd=m['path'], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, env=env)
+    RUNS[a['id']] = {'proc': proc, 'queue': [], 'stopped': False}
+    a['prompt'] = short(text, 110)
+    a['tasks'] += 1
+    set_status(a, 'working', a['prompt'])
+    add_log(a['name'], 'новая задача: ' + short(text, 70), 'working')
+    threading.Thread(target=pump, args=(a['id'], proc), daemon=True).start()
+
+
+def pump(key, proc):
+    with lock:
+        kind = agents[key]['src']
+    junk = []
+    for raw in proc.stdout:
+        line = raw.decode('utf-8', 'replace')
+        evs = runners.parse(kind, line)
+        if not evs:
+            if line.strip() and not line.lstrip().startswith('{'):
+                junk.append(line.strip())
+            continue
+        with lock:
+            a = agents.get(key)
+            if not a:
+                continue
+            for ev in evs:
+                if ev[0] == 'session' and ev[1]:
+                    link_session(a, str(ev[1]))
+                elif ev[0] == 'text':
+                    chat_add(a, 'bot', ev[1])
+                elif ev[0] == 'tool':
+                    d = describe(ev[1], ev[2])
+                    chat_add(a, 'tool', d)
+                    a['steps'] += 1
+                    a['hist'][-1] += 1
+                    if a['status'] != 'waiting':
+                        set_status(a, 'working', d)
+                elif ev[0] == 'done' and ev[1]:
+                    set_status(a, 'done', 'Готово: ' + (a['prompt'] or 'ответил'))
+                    add_log(a['name'], 'закончил', 'done')
+                elif ev[0] == 'done':
+                    set_status(a, 'error', 'Ошибка: ' + short(ev[2], 80))
+                    chat_add(a, 'sys', ev[2] or 'Ошибка')
+                    add_log(a['name'], 'застрял: ' + short(ev[2], 60), 'error')
+            a['last'] = time.time()
+            mark_dirty()
+    rc = proc.wait()
+    with lock:
+        run = RUNS.pop(key, None) or {}
+        a = agents.get(key)
+        if not a:
+            return
+        if run.get('stopped'):
+            set_status(a, 'resting', 'Остановлен')
+            chat_add(a, 'sys', 'Остановлен')
+        elif rc != 0 and a['status'] != 'error':
+            set_status(a, 'error', 'Процесс завершился с кодом %s' % rc)
+            chat_add(a, 'sys', '\n'.join(junk[-6:]) or 'Процесс завершился с кодом %s' % rc)
+            add_log(a['name'], 'застрял: процесс упал', 'error')
+        elif a['status'] == 'working':
+            set_status(a, 'done', 'Готово: ' + (a['prompt'] or 'ответил'))
+        queue = run.get('queue') or []
+        if queue and a['status'] != 'error' and not run.get('stopped'):
+            start_run(a, queue.pop(0))
+            RUNS[key]['queue'] = queue
+        mark_dirty()
+
+
+def send_to(a, text):
+    chat_add(a, 'me', text)
+    run = RUNS.get(a['id'])
+    if run and run['proc'].poll() is None:
+        run['queue'].append(text)
+        chat_add(a, 'sys', 'В очереди: агент закончит текущее и возьмёт это')
+    else:
+        start_run(a, text)
+    mark_dirty()
+
+
+def hire(kind, path, task, name=None):
+    proj = project_of(path)
+    key = 'office:' + uuid.uuid4().hex[:12]
+    a = new_agent(key, kind, key, {'project': proj, 'cwd': path, 'host': 'офис'}, name)
+    a['managed'] = {'path': path}
+    a['task'] = 'Ждёт задачу'
+    projects[proj]['path'] = root_of(path)
+    if task:
+        send_to(a, task)
+    mark_dirty()
+    return a
+
+
+def scan_dirs():
+    home, out, seen = os.path.expanduser('~'), [], set()
+    for d in [home] + [os.path.join(home, x) for x in ('Projects', 'Developer', 'code', 'src', 'Documents', 'Desktop')]:
+        try:
+            names = sorted(os.listdir(d))
+        except OSError:
+            continue
+        for n in names:
+            p = os.path.join(d, n)
+            if not n.startswith('.') and p not in seen and os.path.isdir(os.path.join(p, '.git')):
+                seen.add(p)
+                out.append({'name': n, 'path': p})
+    return out[:80]
+
+
+_limits = {'at': 0, 'val': {}}
+
+
+def cached_limits():
+    if time.time() - _limits['at'] > 60:
+        try:
+            val = limits.read()
+        except Exception as e:   # a third-party database: never let it break the hub
+            print('limits failed:', e, flush=True)
+            val = _limits['val']
+        _limits.update(at=time.time(), val=val)
+    return _limits['val']
 
 
 STATUS_WORDS = {'working': 'working', 'работает': 'working', 'в работе': 'working', 'waiting': 'waiting', 'ждёт': 'waiting',
@@ -353,13 +531,17 @@ def snapshot():
                         'project': a['project'], 'since': a['since'], 'steps': a['steps'], 'tasks': a['tasks'],
                         'events': a['events'], 'hist': a['hist'],
                         'approval': ap['id'] if ap and ap['live'] and not ap['decision'] else None,
-                        'where': (a['host'] + ' · ' if a['host'] else '') + a['cwd'].replace(os.path.expanduser('~'), '~')})
+                        'where': (a['host'] + ' · ' if a['host'] else '') + a['cwd'].replace(os.path.expanduser('~'), '~'),
+                        'managed': bool(a.get('managed')), 'running': a['id'] in RUNS, 'chatLen': len(a.get('chat') or []),
+                        'forkable': a['src'] == 'claude' and not a.get('managed') and a.get('host') == LOCAL_HOST})
         pub.sort(key=lambda x: x['name'])
         ntfy = {'on': settings['ntfyOn'], 'state': ntfy_state['state'], 'last': ntfy_state['last'],
                 'url': settings['ntfyServer'].rstrip('/') + '/' + settings['ntfyTopic'] if settings['ntfyTopic'] else ''}
-        return {'now': time.time(), 'viewers': len(clients), 'settings': {'approveWait': settings['approveWait']},
+        return {'now': time.time(), 'viewers': len(clients), 'settings': {'approveWait': settings['approveWait'], 'agentProxy': settings['agentProxy']},
                 'integrations': integrations(), 'ntfy': ntfy,
-                'projects': [{'name': p['name'], 'color': p['color']} for p in projs], 'agents': pub, 'log': log[:40]}
+                'projects': [{'name': p['name'], 'color': p['color'], 'path': p.get('path') or ''} for p in projs],
+                'agents': pub, 'log': log[:40], 'limits': cached_limits(),
+                'kinds': [k for k in KINDS if runners.binary(k)]}
 
 
 def save():
@@ -385,8 +567,10 @@ def load():
     settings.update(data.get('settings', {}))
     for a in agents.values():
         a['approval'] = None          # held hook calls do not survive a restart
-        if a['status'] == 'waiting':
-            set_status(a, 'resting', 'Ждал разрешения, хаб перезапускался')
+        if a['status'] == 'waiting' or (a.get('managed') and a['status'] == 'working'):
+            set_status(a, 'resting', 'Хаб перезапускался, работа прервана')
+        if a.get('managed') and a['managed'].get('sid'):
+            ALIAS[a['src'] + ':' + a['managed']['sid']] = a['id']
 
 
 def broadcaster():
@@ -418,7 +602,7 @@ def janitor():
                 for a in agents.values():
                     a['hist'] = a['hist'][1:] + [0]
             for key, a in list(agents.items()):
-                if now - a['last'] > FORGET_AFTER:
+                if now - a['last'] > FORGET_AFTER and not a.get('managed'):
                     close_approval(a, 'gone')
                     del agents[key]
                 elif a['status'] == 'working' and now - a['last'] > IDLE_AFTER:
@@ -462,6 +646,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, snapshot())
         if path == '/api/stream':
             return self._stream()
+        if path == '/api/chat':
+            aid = (parse_qs(urlparse(self.path).query).get('id') or [''])[0]
+            with lock:
+                a = agents.get(aid)
+                if not a:
+                    return self._json(404, {'error': 'нет такого агента'})
+                return self._json(200, {'id': aid, 'chat': list(a.get('chat') or [])})
+        if path == '/api/dirs':
+            return self._json(200, {'dirs': scan_dirs()})
         if path == '/':
             path = '/index.html'
         full = os.path.normpath(os.path.join(WEB, path.lstrip('/')))
@@ -524,6 +717,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(400, {'error': 'decision must be allow or deny'})
             ok = decide(str(body.get('id') or ''), body['decision'])
             return self._json(200 if ok else 409, {'ok': ok} if ok else {'error': 'Это разрешение уже решено в терминале или Vibe Island'})
+        if url.path == '/api/settings' and 'agentProxy' in body:
+            px = str(body.get('agentProxy') or '').strip()
+            if px and not px.startswith(('http://127.0.0.1:', 'socks5://127.0.0.1:', 'http://localhost:')):
+                return self._json(400, {'error': 'прокси должен быть локальным: http://127.0.0.1:порт'})
+            with lock:
+                settings['agentProxy'] = px
+            mark_dirty()
+            return self._json(200, {'ok': True})
         if url.path == '/api/settings':
             w = body.get('approveWait')
             if not isinstance(w, int) or not 0 <= w <= MAX_WAIT:
@@ -540,6 +741,8 @@ class Handler(BaseHTTPRequestHandler):
                     ntfy_state['since'] = '1h'
             mark_dirty()
             return self._json(200, {'ok': True})
+        if url.path in ('/api/hire', '/api/send', '/api/stop', '/api/fork'):
+            return self._office_run(url.path, body)
         if url.path == '/api/forget':
             with lock:
                 a = agents.pop(str(body.get('id') or ''), None)
@@ -549,6 +752,47 @@ class Handler(BaseHTTPRequestHandler):
             mark_dirty()
             return self._json(200 if a else 404, {'ok': bool(a)})
         return self._send(404, b'{"error":"not found"}')
+
+
+def _office_run(self, path, body):
+    text = str(body.get('text') or body.get('task') or '').strip()[:8000]
+    try:
+        with lock:
+            if path == '/api/hire':
+                kind, where = body.get('kind'), os.path.realpath(os.path.expanduser(str(body.get('path') or '')))
+                if kind not in KINDS or not runners.binary(kind):
+                    return self._json(400, {'error': 'этот агент не установлен на Маке'})
+                if not os.path.isdir(where) or not where.startswith(os.path.expanduser('~') + os.sep):
+                    return self._json(400, {'error': 'папка должна существовать и лежать в домашней папке'})
+                return self._json(200, {'id': hire(kind, where, text)['id']})
+            a = agents.get(str(body.get('id') or ''))
+            if not a:
+                return self._json(404, {'error': 'нет такого агента'})
+            if path == '/api/stop':
+                run = RUNS.get(a['id'])
+                if run:
+                    run['stopped'] = True
+                    run['proc'].terminate()
+                return self._json(200, {'ok': bool(run)})
+            if not text:
+                return self._json(400, {'error': 'пустое сообщение'})
+            if path == '/api/send':
+                if not a.get('managed'):
+                    return self._json(400, {'error': 'эта сессия идёт в терминале, писать можно только туда'})
+                send_to(a, text)
+                return self._json(200, {'ok': True})
+            if a['src'] != 'claude' or a.get('managed') or a.get('host') != LOCAL_HOST:
+                return self._json(400, {'error': 'продолжить в офисе можно только сессию Claude на этом Маке'})
+            path_ = (projects.get(a['project']) or {}).get('path') or a['cwd']
+            b = hire('claude', path_, '', name=a['name'] + ' · офис')
+            b['managed'].update(sid=a['session'], fork=True)
+            send_to(b, text)
+            return self._json(200, {'id': b['id']})
+    except (RuntimeError, OSError) as e:
+        return self._json(500, {'error': str(e)})
+
+
+Handler._office_run = _office_run
 
 
 def main():

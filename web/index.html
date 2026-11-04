@@ -85,7 +85,7 @@ body[data-dark="1"] .counts .hl{background:#3d2e14;color:#ffd38a}
 .tr .btn.ghost{background:var(--panel);border:1px solid var(--line)}
 
 /* right card */
-.right{top:calc(env(safe-area-inset-top,0px) + 58px);right:max(12px,env(safe-area-inset-right,0px));width:292px;overflow:hidden;display:flex;flex-direction:column;max-height:calc(100% - 58px - 80px)}
+.right{top:calc(env(safe-area-inset-top,0px) + 58px);right:max(12px,env(safe-area-inset-right,0px));width:292px;overflow:hidden;display:flex;flex-direction:column;max-height:calc(100% - 58px - 330px)}
 .rh{padding:12px 14px 14px;color:#fff;display:flex;justify-content:space-between;transition:background .4s}
 .rh .nm{font-weight:700;font-size:15px}
 .rh .big{font-size:34px;font-weight:800;line-height:1;margin-top:6px;font-variant-numeric:tabular-nums}
@@ -140,7 +140,27 @@ body[data-dark="1"] .counts .hl{background:#3d2e14;color:#ffd38a}
 .bub.waiting{background:var(--wait);width:auto;height:auto;max-width:230px;border-radius:10px;padding:6px 10px;color:#fff;font-size:12px;font-weight:700;line-height:1.3;text-align:center;animation:bob 1s ease-in-out infinite}
 .bub.waiting::after{content:"";position:absolute;left:50%;bottom:-5px;margin-left:-5px;border:5px solid transparent;border-bottom:0;border-top-color:var(--wait)}
 .bub.error{background:var(--err)}
-body.live .cmd,body.live #routinesCard{display:none}
+body.live #routinesCard{display:none}
+.limits{bottom:calc(env(safe-area-inset-bottom,0px) + 60px);right:max(12px,env(safe-area-inset-right,0px));width:292px;padding:10px 12px 8px}
+.lim{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:center;padding:5px 0;border-top:1px solid var(--line)}
+.lim:first-of-type{border-top:0}
+.lim .nm{font-weight:600;font-size:12px;display:flex;align-items:center;gap:6px;grid-column:1/-1}
+.lim .nm small{font-weight:500;color:var(--muted);margin-left:auto;font-size:11px}
+.lim .w{font-size:11px;color:var(--muted);white-space:nowrap}
+.lim .b{height:5px;border-radius:9px;background:var(--chip);overflow:hidden}
+.lim .b i{display:block;height:100%;border-radius:9px}
+.lim.stale{opacity:.55}
+.msg.user{align-self:flex-end;background:var(--chip);border:1px dashed var(--line)}
+.msg.tool{align-self:flex-start;background:transparent;color:var(--muted);font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;padding:2px 4px}
+.msg.tool::before{content:"› "}
+.msg code{font:12px ui-monospace,Menlo,monospace;background:rgba(127,127,127,.15);padding:0 4px;border-radius:4px}
+.msg .lbl{display:block;font-size:10px;opacity:.6;margin-bottom:2px}
+.ro{padding:10px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.hire .opts{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px}
+.hire .opts button[aria-pressed="true"]{background:var(--btn);color:var(--btn-ink)}
+.hire label{display:block;font-weight:600;font-size:12px;margin:8px 0 4px}
+.hire select,.hire input,.hire textarea{width:100%;box-sizing:border-box;font:inherit;font-size:13px;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:8px}
+.hire textarea{resize:vertical;min-height:70px}
 .bub.resting{width:auto;height:24px;padding:0 9px;border-radius:99px}
 @keyframes bob{50%{margin-top:-5px}}
 .bub b{color:#fff;font-weight:800;font-size:16px}
@@ -157,7 +177,7 @@ body.live .cmd,body.live #routinesCard{display:none}
 .chat header{display:flex;gap:10px;align-items:center;padding:12px;border-bottom:1px solid var(--line)}
 .chat header .nm{font-weight:700;font-size:14px}
 .msgs{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
-.msg{white-space:pre-line;max-width:85%;padding:8px 11px;border-radius:12px;font-size:13px;line-height:1.4;background:var(--chip)}
+.msg{white-space:pre-wrap;word-break:break-word;max-width:85%;padding:8px 11px;border-radius:12px;font-size:13px;line-height:1.4;background:var(--chip)}
 .msg.me{align-self:flex-end;background:var(--btn);color:var(--btn-ink)}
 .msg.sys{align-self:center;background:transparent;color:var(--muted);font-size:11px}
 .msg time{display:block;font-size:10px;opacity:.6;margin-top:3px}
@@ -222,6 +242,7 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
 
 <div class="card tr">
   <button class="btn ghost" id="darkBtn" aria-pressed="false"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span class="lbl" id="darkLbl">Тёмная</span></button>
+  <button class="btn ghost" id="hireBtn" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="lbl">Нанять</span></button>
   <button class="btn" id="connectBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0V7zM12 16v5"/></svg><span class="lbl">Подключить ИИ</span></button>
 </div>
 
@@ -262,6 +283,8 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
   <button class="btn" type="submit">Отправить</button>
 </form>
 
+<section class="card limits" id="limitsCard" aria-label="Лимиты"><div class="sec-h" style="padding:0 0 4px"><p class="cap">Лимиты</p><span class="muted" style="font-size:11px" id="limNote"></span></div><div id="limList"></div></section>
+
 <div class="card ctl" role="group" aria-label="Камера">
   <button id="rotL" aria-label="Повернуть влево"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
   <button id="rotR" aria-label="Повернуть вправо"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></button>
@@ -274,6 +297,7 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
 
 <div id="chatWrap"></div>
 <div id="connectWrap"></div>
+<div id="hireWrap"></div>
 
 <script src="vendor/three.min.js"></script>
 <script>window.THREE || document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"><\/script>')</script>
@@ -669,13 +693,15 @@ function approve(id) { const a = byId(id); if (!a || a.status !== 'waiting') ret
 function deny(id) { const a = byId(id); if (!a) return; if (S.live) return liveDecide(a, 'deny'); setStatus(a, 'done', 'Запрос отклонён'); log('Ты', 'отклонил запрос: ' + a.name, 'resting'); chatPush(a, 'me', 'Нет, подожди'); chatPush(a, 'bot', 'Ок, отменил.'); renderUI(); }
 function select(id) { const a = byId(id); if (!a) return; if (!S.open || FLOORS[S.floor] !== FLOORS[a.fi]) openFloor(a.fi); S.sel = S.sel === id ? null : id; S.tab = 'team'; renderUI(); }
 function chatPush(a, who, text) { a.chat = a.chat || [{ who: 'bot', text: a.task }]; a.chat.push({ who, text }); }
-function openChat(id) { const a = byId(id); if (!a) return; a.chat = a.chat || [{ who: 'sys', text: KIND[a.kind].label + ' · этаж ' + FLOORS[a.fi].n }, { who: 'bot', text: a.status === 'waiting' ? a.task : 'Сейчас: ' + a.task.toLowerCase() }]; S.chat = id; renderChat(); }
+function openChat(id) { if (S.live) { S.chat = id; S.chatMsgs = null; S.chatLen = -1; renderChat(); return loadChat(id); } const a = byId(id); if (!a) return; a.chat = a.chat || [{ who: 'sys', text: KIND[a.kind].label + ' · этаж ' + FLOORS[a.fi].n }, { who: 'bot', text: a.status === 'waiting' ? a.task : 'Сейчас: ' + a.task.toLowerCase() }]; S.chat = id; renderChat(); }
 
 /* ================= UI ================= */
 const ST = { working: 'Работает', waiting: 'Ждёт тебя', done: 'Готово', resting: 'Отдыхает', error: 'Застрял' };
 const ava = (a, cls) => `<span class="ava ${cls || ''}" style="background:${KIND[a.kind].color};--c:${KIND[a.kind].color}" aria-hidden="true"><i></i></span>`;
 function renderUI() {
   $('floorsN').textContent = FLOORS.length;
+  $('hireBtn').hidden = !S.live; renderLimits();
+  if (S.live) { const a = S.sel && byId(S.sel); $('cmdWho').textContent = a && a.managed ? a.name : 'новому агенту'; }
   $('tUse').hidden = S.live && !S.open; if ($('tUse').hidden && S.tab === 'use') S.tab = 'team';
   const all = ALL(), c = s => all.filter(a => a.status === s).length;
   $('counts').innerHTML = `<span><i class="dot s-working"></i><b>${c('working')}</b><span class="t muted" style="padding:0">работают</span></span><span class="${c('waiting') ? 'hl' : ''}"><i class="dot s-waiting"></i><b>${c('waiting')}</b><span class="t" style="padding:0">ждут</span></span><span><i class="dot s-error"></i><b>${c('error')}</b><span class="t muted" style="padding:0">застряли</span></span><span><i class="dot s-resting"></i><b>${c('resting')}</b><span class="t muted" style="padding:0">отдыхают</span></span>`;
@@ -722,12 +748,14 @@ function renderUI() {
   $('routines').innerHTML = ROUTINES.map((r, i) => `<div class="rt ${r.on ? '' : 'off'}"><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div style="min-width:0;flex:1"><div class="nm">${r.name}</div><div class="ds muted">${r.who} · ${r.when}</div></div><div class="side">${r.on ? `<span class="cd">${fmtIn(r.at - Date.now())}</span>` : '<span class="cd" style="background:var(--chip);color:var(--muted)">выкл</span>'}<button class="btn ghost" style="min-height:24px;padding:2px 8px;font-size:11px" data-routine="${i}">${r.on ? 'Выключить' : 'Включить'}</button></div></div>`).join('');
   $('tTeam').setAttribute('aria-selected', String(S.tab === 'team')); $('tUse').setAttribute('aria-selected', String(S.tab === 'use'));
   $('log').innerHTML = LOG.slice(0, 5).map(l => `<div class="${l.fresh ? 'new' : ''}"><span class="tm">${l[0]}</span><i class="dot s-${l[3]}"></i><b>${esc(l[1])}</b><span class="tx">${esc(l[2])}</span></div>`).join('');
-  const to = S.sel ? byId(S.sel) : null; $('cmdWho').textContent = to ? to.name : 'Диспетчер';
-  $('cmdText').placeholder = to ? 'Задача для ' + to.name + '…' : 'Дай задачу… Диспетчер раздаст по этажам';
+  const to = S.sel ? byId(S.sel) : null;
+  if (!S.live) { $('cmdWho').textContent = to ? to.name : 'Диспетчер'; $('cmdText').placeholder = to ? 'Задача для ' + to.name + '…' : 'Дай задачу… Диспетчер раздаст по этажам'; }
+  else $('cmdText').placeholder = to && to.managed ? 'Написать ' + to.name + '…' : 'Опиши задачу — откроется найм агента';
   paintTags(); ALL().forEach(paintBubble);
   if (S.chat) renderChat(true);
 }
 function renderChat(soft) {
+  if (S.live) return renderChatLive(soft);
   const a = S.chat && byId(S.chat); document.body.classList.toggle('chat-open', !!a);
   if (!a) { $('chatWrap').innerHTML = ''; $('right').style.visibility = ''; return; }
   const quick = a.status === 'waiting' ? `<button class="btn ghost" data-approve="${a.id}">Да, делай</button><button class="btn ghost" data-deny="${a.id}">Нет, пропусти</button>`
@@ -751,13 +779,16 @@ function renderConnect() {
 }
 
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-approve],[data-deny],[data-chat],[data-floor],[data-home],[data-sel],[data-wake],[data-pause],[data-closechat],[data-closeconn],[data-unsel],[data-ping],[data-q],[data-routine],[data-forget],[data-wait],[data-ntfy],[data-copyprompt]'); if (!t) return;
+  const t = e.target.closest('[data-approve],[data-deny],[data-chat],[data-floor],[data-home],[data-sel],[data-wake],[data-pause],[data-closechat],[data-closeconn],[data-unsel],[data-ping],[data-q],[data-routine],[data-forget],[data-wait],[data-ntfy],[data-copyprompt],[data-stop],[data-fork],[data-kind],[data-closehire]'); if (!t) return;
   const d = t.dataset;
   if (d.closeconn) { if (e.target === t || t.tagName === 'BUTTON') $('connectWrap').innerHTML = ''; return; }
   if (d.approve) approve(d.approve);
   else if (d.deny) deny(d.deny);
   else if (d.chat) { e.stopPropagation(); openChat(d.chat); }
   else if (d.closechat) { S.chat = null; renderChat(); }
+  else if (d.stop) { api('/api/stop', { id: d.stop }).catch(e => toastErr(e)); }
+  else if (d.kind) { S.hireKind = d.kind; renderHire(); }
+  else if (d.closehire) { if (e.target === t || t.tagName === 'BUTTON') $('hireWrap').innerHTML = ''; }
   else if (d.forget) { api('/api/forget', { id: d.forget }).catch(e => { log('Офис', e.message, 'error'); renderUI(); }); S.sel = null; }
   else if (d.wait !== undefined) { api('/api/settings', { approveWait: +d.wait }).then(() => { S.hub.settings.approveWait = +d.wait; renderConnect(); }).catch(e => { log('Офис', e.message, 'error'); renderUI(); }); }
   else if (d.ntfy) { api('/api/ntfy', { on: d.ntfy !== 'off', newTopic: d.ntfy === 'new' }).then(() => api('/api/state')).then(st => { S.hub = st; renderConnect(); }).catch(e => { log('Офис', e.message, 'error'); renderUI(); }); }
@@ -781,13 +812,14 @@ $('tTeam').onclick = () => { S.tab = 'team'; renderUI(); };
 $('tUse').onclick = () => { S.tab = 'use'; renderUI(); };
 $('finToggle').onclick = () => { S.finOpen = !S.finOpen; $('finToggle').setAttribute('aria-expanded', String(S.finOpen)); $('finToggle').style.transform = S.finOpen ? '' : 'rotate(180deg)'; renderUI(); };
 $('connectBtn').onclick = renderConnect;
+$('hireBtn').onclick = () => openHire('');
 $('darkBtn').onclick = () => { S.dark = !S.dark; store.set('office-dark', S.dark ? '1' : '0'); applyDark(); };
 $('home').onclick = closeFloor;
 const rotate = (ang) => { const off = camera.position.clone().sub(controls.target); off.applyAxisAngle(new THREE.Vector3(0, 1, 0), ang); camera.position.copy(controls.target).add(off); };
 $('rotL').onclick = () => rotate(-Math.PI / 4); $('rotR').onclick = () => rotate(Math.PI / 4);
 $('zIn').onclick = () => { camera.zoom = Math.min(4.5, camera.zoom * 1.25); camera.updateProjectionMatrix(); };
 $('zOut').onclick = () => { camera.zoom = Math.max(0.55, camera.zoom / 1.25); camera.updateProjectionMatrix(); };
-$('cmd').addEventListener('submit', (e) => { e.preventDefault(); const v = $('cmdText').value.trim(); if (!v) return;
+$('cmd').addEventListener('submit', (e) => { e.preventDefault(); const v = $('cmdText').value.trim(); if (!v) return; if (S.live) return liveCmd(v);
   let a = S.sel ? byId(S.sel) : null;
   if (!a) { const cand = ALL().filter(x => x.status === 'resting' || x.status === 'done'); a = cand[0]; log('Диспетчер', 'отдал задачу → ' + (a ? a.name : 'никому'), 'working'); }
   if (a) { setStatus(a, 'working', v); log('Ты → ' + a.name, v, 'working'); }
@@ -845,6 +877,10 @@ function frame(t) {
     else if (a.status === 'waiting') { b.position.y = base + Math.abs(Math.sin(t / 260 + p)) * 0.16; b.rotation.set(0, 0, 0); }
     else if (a.status === 'resting') { b.position.y = base; b.rotation.set(0, 0, 0.45); }
     else { b.position.y = base; b.rotation.set(0, 0, 0); }
+    const lim = S.live && S.hub && S.hub.limits && S.hub.limits[a.kind], used = lim && lim.five ? lim.five.pct : 0;
+    if (used >= 100 && a.status !== 'resting') { b.rotation.z = 0.5; b.position.y = base - 0.05; }   // out of limit: dozing at the desk
+    else if (used >= 85 && a.status !== 'resting') { b.scale.set(1.05, 0.9, 1.05); }                 // tired
+    else if (a.status !== 'resting') b.scale.set(1, 1, 1);
     const onOpen = openL && FLOORS[a.fi].L === openL, show = onOpen || (!S.open && a.status === 'waiting');
     r.bub.style.display = show ? '' : 'none';
     if (show) { v3.set(0, base + 0.9, 0); r.g.localToWorld(v3); v3.project(camera); r.bub.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px'; r.bub.style.top = ((1 - v3.y) / 2 * innerHeight) + 'px'; } });
@@ -881,8 +917,73 @@ const waitActs = (a) => !S.live ? `<button class="btn" data-chat="${a.id}">От�
 function detailActs(a) {
   const yesNo = `<div style="display:flex;gap:6px"><button class="btn" style="flex:1" data-approve="${a.id}">Одобрить</button><button class="btn ghost" style="flex:1" data-deny="${a.id}">Отклонить</button></div>`;
   if (!S.live) return (a.status === 'waiting' ? yesNo : '') + `<button class="btn" data-chat="${a.id}">Открыть чат</button>` + (a.status === 'resting' ? `<button class="btn ghost" data-wake="${a.id}">Разбудить</button>` : `<button class="btn ghost" data-ping="${a.id}">Пинг</button>`);
-  return (a.status !== 'waiting' ? '' : a.approval ? yesNo : '<p class="muted" style="margin:0;font-size:12px">Ответь в терминале или Vibe Island. Чтобы одобрять отсюда, держи офис открытым, когда агент спрашивает.</p>')
+  return `<button class="btn" data-chat="${a.id}">${a.managed ? 'Чат' : 'История и чат'}</button>` + (a.running ? `<button class="btn ghost" data-stop="${a.id}">Остановить</button>` : '') + (a.status !== 'waiting' ? '' : a.approval ? yesNo : '<p class="muted" style="margin:0;font-size:12px">Ответь в терминале или Vibe Island. Чтобы одобрять отсюда, держи офис открытым, когда агент спрашивает.</p>')
     + `<button class="btn ghost" data-forget="${a.id}">Убрать из офиса</button>`;
+}
+const chatHtml = (t) => esc(t).replace(/`([^`\n]+)`/g, '<code>$1</code>');
+function toastErr(e) { log('Офис', e.message || String(e), 'error'); renderUI(); }
+function loadChat(id) {
+  return api('/api/chat?id=' + encodeURIComponent(id)).then(j => { if (S.chat !== id) return; S.chatMsgs = j.chat; S.chatLen = j.chat.length; renderChat(true); }).catch(toastErr);
+}
+function renderChatLive(soft) {
+  const a = S.chat && byId(S.chat); document.body.classList.toggle('chat-open', !!a);
+  if (!a) { $('chatWrap').innerHTML = ''; $('right').style.visibility = ''; return; }
+  if (a.chatLen !== S.chatLen && S.chatMsgs) loadChat(a.id);
+  const msgs = S.chatMsgs;
+  const body = msgs === null ? '<div class="msg sys">Загружаю…</div>' : !msgs.length ? `<div class="msg sys">${a.managed ? 'Напиши первую задачу' : 'История появится после первого ответа агента'}</div>`
+    : msgs.map(m => `<div class="msg ${m.who === 'me' ? 'me' : m.who}">${m.who === 'user' ? '<span class="lbl">в терминале</span>' : ''}${chatHtml(m.text)}<time>${m.t || ''}</time></div>`).join('');
+  const quick = (a.status === 'waiting' && a.approval ? `<button class="btn" data-approve="${a.id}">Разрешить</button><button class="btn ghost" data-deny="${a.id}">Запретить</button>` : '')
+    + (a.running ? `<button class="btn ghost" data-stop="${a.id}">Остановить</button>` : '');
+  const foot = a.managed ? `<form id="chatForm"><label class="sr" for="chatIn">Сообщение</label><input id="chatIn" autocomplete="off" placeholder="${a.running ? 'Добавить в очередь…' : 'Написать ' + esc(a.name) + '…'}"><button class="btn" type="submit" aria-label="Отправить">→</button></form>`
+    : a.forkable ? `<form id="chatForm" data-forkform="1"><label class="sr" for="chatIn">Сообщение</label><input id="chatIn" autocomplete="off" placeholder="Продолжить разговор в офисе…"><button class="btn" type="submit">Продолжить</button></form><div class="ro">Ответ уйдёт в копию этой сессии: офис продолжит разговор отдельно, терминал не тронет.</div>`
+    : `<div class="ro">Сессия идёт ${a.role ? 'на ' + esc(a.role.split(' · ')[0]) : 'в терминале'}. Здесь видна её история, писать можно только туда.</div>`;
+  const keep = soft && document.activeElement && document.activeElement.id === 'chatIn' ? $('chatIn').value : null;
+  const ms0 = $('msgs'), atBottom = !ms0 || ms0.scrollHeight - ms0.scrollTop - ms0.clientHeight < 40;
+  $('chatWrap').innerHTML = `<aside class="card chat" aria-label="Чат с ${esc(a.name)}"><header>${ava(a)}<div style="flex:1;min-width:0"><div class="nm">${esc(a.name)}</div><div class="muted" style="font-size:12px"><i class="dot s-${a.status}"></i> ${esc(FLOORS[a.fi] ? FLOORS[a.fi].name : '')} · ${ST[a.status]}${a.managed ? ' · агент офиса' : ''}</div></div><button class="chev" data-closechat="1" aria-label="Закрыть чат"><svg width="14" height="14" viewBox="0 0 14 14" stroke="currentColor" stroke-width="2"><path d="M3 3l8 8M11 3l-8 8"/></svg></button></header>
+    <div class="msgs" id="msgs">${body}</div>${quick ? `<div class="quick">${quick}</div>` : ''}${foot}</aside>`;
+  $('right').style.visibility = 'hidden';
+  const ms = $('msgs'); if (atBottom || !soft) ms.scrollTop = ms.scrollHeight;
+  if (keep !== null) { $('chatIn').value = keep; $('chatIn').focus(); }
+  const f = $('chatForm'); if (f) f.onsubmit = (e) => { e.preventDefault(); const v = $('chatIn').value.trim(); if (!v) return; $('chatIn').value = '';
+    if (f.dataset.forkform) api('/api/fork', { id: a.id, text: v }).then(j => openChat(j.id)).catch(toastErr);
+    else api('/api/send', { id: a.id, text: v }).then(() => loadChat(a.id)).catch(toastErr); };
+}
+const KIND_RU = { claude: 'Клод · Claude Code', codex: 'Кодекс · Codex', antigravity: 'Джемини · Antigravity' };
+function openHire(task) {
+  S.hireTask = task; S.hireKind = S.hireKind || (S.hub.kinds || [])[0]; S.hireDirs = S.hireDirs || null; renderHire();
+  if (!S.hireDirs) api('/api/dirs').then(j => { S.hireDirs = j.dirs; renderHire(); }).catch(toastErr);
+}
+function renderHire() {
+  const cur = S.open && FLOORS[S.floor] ? (S.hub.projects.find(p => p.name === FLOORS[S.floor].name) || {}).path : '';
+  const known = S.hub.projects.filter(p => p.path).map(p => ({ name: p.name, path: p.path }));
+  const dirs = [...known, ...(S.hireDirs || []).filter(d => !known.some(k => k.path === d.path))];
+  const prevTask = $('hireTask') ? $('hireTask').value : S.hireTask, prevDir = $('hireDir') ? $('hireDir').value : (cur || (dirs[0] || {}).path || '');
+  $('hireWrap').innerHTML = `<div class="scrim" data-closehire="1"><form class="card modal hire" id="hireForm" role="dialog" aria-modal="true" aria-labelledby="hTitle"><h2 id="hTitle">Нанять агента</h2>
+    <p class="muted" style="margin:0">Офис сам запустит агента в папке проекта. Правки файлов он делает сам, команды в терминале просит разрешить здесь.</p>
+    <div class="opts" role="group" aria-label="Агент">${(S.hub.kinds || []).map(k => `<button type="button" class="btn ghost" data-kind="${k}" aria-pressed="${k === S.hireKind}">${KIND_RU[k] || k}</button>`).join('') || '<span class="muted">На Маке не нашлось ни одного агента</span>'}</div>
+    <label for="hireDir">Проект</label><select id="hireDir">${dirs.map(d => `<option value="${esc(d.path)}" ${d.path === prevDir ? 'selected' : ''}>${esc(d.name)} — ${esc(d.path.replace(/^\/Users\/[^/]+/, '~'))}</option>`).join('')}<option value="">Другая папка…</option></select>
+    <input id="hireOther" placeholder="~/Projects/моя-папка" ${dirs.length ? 'hidden' : ''}>
+    <label for="hireTask">Первая задача <span class="muted" style="font-weight:400">(можно пусто)</span></label><textarea id="hireTask" placeholder="Например: добавь напоминание за 10 минут до пары">${esc(prevTask || '')}</textarea>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button type="button" class="btn ghost" data-closehire="1">Отмена</button><button class="btn" type="submit">Нанять</button></div></form></div>`;
+  $('hireDir').onchange = () => { $('hireOther').hidden = !!$('hireDir').value; };
+  $('hireForm').onsubmit = (e) => { e.preventDefault();
+    const path = $('hireDir').value || $('hireOther').value.trim();
+    if (!S.hireKind || !path) return toastErr(new Error('Выбери агента и папку'));
+    api('/api/hire', { kind: S.hireKind, path, task: $('hireTask').value.trim() }).then(j => { $('hireWrap').innerHTML = ''; S.sel = null; openChat(j.id); }).catch(toastErr); };
+}
+function liveCmd(v) {
+  const a = S.sel && byId(S.sel);
+  if (a && a.managed) { $('cmdText').value = ''; api('/api/send', { id: a.id, text: v }).then(() => openChat(a.id)).catch(toastErr); }
+  else { $('cmdText').value = ''; openHire(v); }
+}
+function renderLimits() {
+  const L = S.live ? (S.hub.limits || {}) : { claude: { label: 'Claude', five: { pct: 31, resets: Date.now() / 1000 + 9000 }, week: { pct: 12 } }, codex: { label: 'ChatGPT · Codex', five: { pct: 48, resets: Date.now() / 1000 + 4000 }, week: { pct: 20 } }, gemini: { label: 'Gemini · Antigravity', five: { pct: 5 }, week: { pct: 2 } }, grok: { label: 'Grok Bot', month: { pct: 12, note: 'демо' } } };
+  const order = ['claude', 'codex', 'gemini', 'grok'].filter(k => L[k]);
+  const bar = (w, k, name) => w ? `<span class="w">${name}</span><span style="display:flex;align-items:center;gap:6px"><span class="b" style="flex:1"><i style="width:${Math.min(100, w.pct)}%;background:${w.pct >= 85 ? 'var(--err)' : KIND[k] ? KIND[k].color : 'var(--ink)'}"></i></span><span class="w" style="min-width:34px;text-align:right">${Math.round(w.pct)}%</span></span>` : '';
+  $('limList').innerHTML = order.length ? order.map(k => { const v = L[k], reset = v.five && v.five.resets ? fmtIn(v.five.resets * 1000 - Date.now()).replace('через', 'сброс через') : (v.month && v.month.note) || '';
+    return `<div class="lim ${v.stale ? 'stale' : ''}"><span class="nm"><i class="dot" style="background:${KIND[k] ? KIND[k].color : '#999'}"></i>${esc(v.label)}<small>${esc(reset)}</small></span>${bar(v.five, k, '5 ч')}${bar(v.week, k, 'неделя')}${bar(v.month, k, 'месяц')}</div>`; }).join('')
+    : '<p class="muted" style="margin:4px 0">Нет данных о лимитах</p>';
+  $('limNote').textContent = S.live ? 'из Vibe Island' : 'демо';
 }
 function renderConnectLive() {
   const it = S.hub.integrations || {}, w = S.hub.settings.approveWait;
