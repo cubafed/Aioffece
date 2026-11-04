@@ -516,7 +516,7 @@ const ENV = {};
 const skyTex = (top, mid, bot) => textTex(4, 256, (c, w, h) => { const gr = c.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, top); gr.addColorStop(0.55, mid); gr.addColorStop(1, bot); c.fillStyle = gr; c.fillRect(0, 0, w, h); });
 // soft studio environment: glass, metal and screens pick up reflections instead of reading as flat colour
 { const env = new THREE.Scene(), sky = textTex(64, 256, (c, w, h) => { const gr = c.createLinearGradient(0, 0, 0, h);
-    gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.45, '#dfe9f2'); gr.addColorStop(0.55, '#c9d6c2'); gr.addColorStop(1, '#6f7a68'); c.fillStyle = gr; c.fillRect(0, 0, w, h); });
+    gr.addColorStop(0, '#c2d2e2'); gr.addColorStop(0.45, '#a9b9c8'); gr.addColorStop(0.55, '#8f9c88'); gr.addColorStop(1, '#3f463a'); c.fillStyle = gr; c.fillRect(0, 0, w, h); });
   env.add(new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), new THREE.MeshBasicMaterial({ map: sky, side: THREE.BackSide })));
   [[30, 25, 10], [-25, 20, -20]].forEach(([x, y, z]) => { const pl = new THREE.Mesh(new THREE.PlaneGeometry(18, 10), new THREE.MeshBasicMaterial({ color: 0xffffff })); pl.position.set(x, y, z); pl.lookAt(0, 0, 0); env.add(pl); });
   scene.environment = ENV.day = new THREE.PMREMGenerator(renderer).fromScene(env, 0.04).texture; }
@@ -529,11 +529,11 @@ scene.add(sun);
 
 const mat = (color, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.85 }, o));
 const M = {
-  grass: mat('#c6dcb0'), soil: mat('#c7cfb7'), paving: mat('#dedad1'), paving2: mat('#cdc8bd'), asphalt: mat('#4a4e55'), line: mat('#f4f4f4'),
+  grass: mat('#a8d083'), soil: mat('#b8a07c'), paving: mat('#dedad1'), paving2: mat('#cdc8bd'), asphalt: mat('#4a4e55'), line: mat('#f4f4f4'),
   slab: mat('#e9e8e4'), glass: mat('#27303c', { roughness: 0.2, metalness: 0.35 }), fin: mat('#c49a6c'), finDark: mat('#30343b'),
   inner: mat('#efece6'), wood: mat('#cfa877'), deck: mat('#c79f72'), desk: mat('#ffffff'), leg: mat('#d9dce1'), chair: mat('#25272c'),
   monitor: mat('#1d1f24'), sofa: mat('#e7e4df'), dark: mat('#2b2e34'), white: mat('#ffffff'), metal: mat('#c3c7ce', { metalness: 0.4, roughness: 0.4 }),
-  water: mat('#8fc9e6', { roughness: 0.15, metalness: 0.1 }), trunk: mat('#a07c5a'), planter: mat('#9d8a73'), leaf: mat('#8fc77a'),
+  water: mat('#4fa9dc', { roughness: 0.12, metalness: 0.1 }), trunk: mat('#a07c5a'), planter: mat('#9d8a73'), leaf: mat('#6bb552'),
   solar: mat('#2a4a7a', { roughness: 0.3, metalness: 0.4 }), red: mat('#e5484d'), railGlass: new THREE.MeshStandardMaterial({ color: '#d7ebff', transparent: true, opacity: 0.25, roughness: 0.1 })
 };
 M.screen = new THREE.MeshBasicMaterial({ map: codeTex(), toneMapped: false });
@@ -651,12 +651,12 @@ const TREES = {};
   const pineG = new THREE.ConeGeometry(1, 2.2, 7);
   const pines = new THREE.InstancedMesh(pineG, new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), pine.length * 2);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), col = new THREE.Color();
-  const greens = ['#c9e6b4', '#b5dca0', '#d6edc6', '#a6d293', '#bfe1ab'];
+  const greens = ['#7cc05a', '#68b04c', '#8fcd69', '#5aa043', '#76b957'];
   spots.forEach((s, i) => { m4.compose(new THREE.Vector3(s[0], 0.5 * s[2], s[1]), q, new THREE.Vector3(s[2], s[2], s[2])); trunks.setMatrixAt(i, m4); });
   round.forEach((s, i) => { const r = 1.15 * s[2]; m4.compose(new THREE.Vector3(s[0], 1.1 * s[2] + r * 0.8, s[1]), q, new THREE.Vector3(r, r * 1.05, r)); crowns.setMatrixAt(i, m4); crowns.setColorAt(i, col.set(greens[i % 5])); });
   pine.forEach((s, i) => { const r = 0.95 * s[2];
-    m4.compose(new THREE.Vector3(s[0], 1.6 * s[2], s[1]), q, new THREE.Vector3(r, s[2], r)); pines.setMatrixAt(i * 2, m4); pines.setColorAt(i * 2, col.set('#7fbf96'));
-    m4.compose(new THREE.Vector3(s[0], 2.6 * s[2], s[1]), q, new THREE.Vector3(r * 0.7, s[2] * 0.8, r * 0.7)); pines.setMatrixAt(i * 2 + 1, m4); pines.setColorAt(i * 2 + 1, col.set('#94cca8')); });
+    m4.compose(new THREE.Vector3(s[0], 1.6 * s[2], s[1]), q, new THREE.Vector3(r, s[2], r)); pines.setMatrixAt(i * 2, m4); pines.setColorAt(i * 2, col.set('#3f8f62'));
+    m4.compose(new THREE.Vector3(s[0], 2.6 * s[2], s[1]), q, new THREE.Vector3(r * 0.7, s[2] * 0.8, r * 0.7)); pines.setMatrixAt(i * 2 + 1, m4); pines.setColorAt(i * 2 + 1, col.set('#4f9f70')); });
   [trunks, crowns, pines].forEach(m => { m.castShadow = true; m.receiveShadow = true; scene.add(m); });
   Object.assign(TREES, { crowns, pines, base: [crowns.instanceColor.array.slice(), pines.instanceColor.array.slice()] });
 }
@@ -1082,9 +1082,9 @@ function sunState(date) {
 function updateSun() {
   const { el, az } = sunState(new Date()), deg = el * 180 / Math.PI;
   if (store.get('office-dark') == null && S.dark !== (deg < -3)) { S.dark = deg < -3; return applyDark(); }
-  const e = Math.max(el, 0.12);
+  const e = 0.6 + 0.3 * Math.min(1, Math.max(0, el / 0.25));   // real direction, stylised height: Moscow's winter sun (≤13°) throws shadows off the map
   sun.position.set(-Math.sin(az) * Math.cos(e) * 70, Math.sin(e) * 70, Math.cos(az) * Math.cos(e) * 70);
-  if (!S.dark) { sun.intensity = 0.55 + 0.8 * Math.min(1, Math.max(0, Math.sin(el) * 2.5)); sun.color.set(deg < 12 ? '#ffd2a1' : '#fff3e2'); }
+  if (!S.dark) { sun.intensity = 1.1 + 1.0 * Math.min(1, Math.max(0, Math.sin(el) * 2.5)); sun.color.set(deg < 12 ? '#ffc98f' : '#ffe8c8'); }
 }
 function applySeason() {
   const w = S.live && S.hub && S.hub.weather, m = new Date().getMonth();
@@ -1177,11 +1177,11 @@ function openLook(id) {
 function applyDark() {
   const d = S.dark; document.body.dataset.dark = d ? '1' : '0';
   $('darkBtn').setAttribute('aria-pressed', String(d)); $('darkLbl').textContent = d ? 'Светлая' : 'Тёмная';
-  ENV.night = ENV.night || skyTex('#050914', '#0d1630', '#1b2a4a'); ENV.dayBg = ENV.dayBg || skyTex('#cfe0ee', '#e4ebe2', '#dfe5db');
+  ENV.night = ENV.night || skyTex('#050914', '#0d1630', '#1b2a4a'); ENV.dayBg = ENV.dayBg || skyTex('#8fbbe3', '#cfe2ee', '#eef1e8');
   scene.background = d ? ENV.night : ENV.dayBg;
   scene.environment = d ? null : ENV.day;                       // the daylight env map is what made the night look like noon
-  hemi.intensity = d ? 0.5 : 0.55; hemi.color.set(d ? '#4a5f96' : '#ffffff'); hemi.groundColor.set(d ? '#0c111d' : '#b7c2ae');
-  sun.intensity = d ? 0.55 : 1.3; sun.color.set(d ? '#7d95ff' : '#fff3e2');
+  hemi.intensity = d ? 0.5 : 0.32; hemi.color.set(d ? '#4a5f96' : '#dfeaff'); hemi.groundColor.set(d ? '#0c111d' : '#8d9a78');
+  sun.intensity = d ? 0.55 : 2.1; sun.color.set(d ? '#7d95ff' : '#ffe8c8');
   M.glass.emissive.set(d ? '#ffb85c' : '#000000'); M.glass.emissiveIntensity = d ? 0.55 : 0;
   CLOUDS.forEach(c => { c.children[0].material.color.set(d ? '#323a52' : '#ffffff'); c.children[0].material.opacity = d ? 0.75 : 0.88; });
   M.lamp.color.set(d ? '#ffe6a6' : '#e8e4da');
@@ -1708,7 +1708,7 @@ function updatePenthouse(st) {
 const CLOUDS = [], BIRDS = [];
 for (let i = 0; i < 7; i++) { const c = new THREE.Group(), cm = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, transparent: true, opacity: 0.92, flatShading: true });
   for (let k = 0; k < 4; k++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(1.2 + Math.random() * 1.6, 1), cm); m.position.set(k * 1.6 - 2.4, Math.random() * 0.8, (Math.random() - 0.5) * 1.6); m.castShadow = true; c.add(m); }
-  c.scale.setScalar(0.65); c.position.set(-60 + i * 18, 30 + Math.random() * 4, i % 2 ? -34 - Math.random() * 8 : 26 + Math.random() * 8); scene.add(c); CLOUDS.push(c); }
+  c.scale.setScalar(0.8); c.position.set(-60 + i * 18, 26 + Math.random() * 6, -58 - Math.random() * 14); scene.add(c); CLOUDS.push(c); }
 for (let i = 0; i < 4; i++) { const b = new THREE.Group(), bm = mat('#2b2e34'); [-1, 1].forEach(sd => { const w = box(0.5, 0.03, 0.16, bm, sd * 0.25, 0, 0, b, { noCast: true }); w.userData.side = sd; }); scene.add(b); BIRDS.push(b); }
 function cloudCount() { const c = S.live && S.hub && S.hub.weather ? S.hub.weather.code : 1; return c == null ? 4 : c === 0 ? 2 : c <= 2 ? 4 : 7; }
 function ambientTick(t) {
