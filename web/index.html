@@ -4,7 +4,9 @@
 <style>
 /* Layout: full-bleed isometric diorama (office tower on an island), white cards float at the edges */
 :root{
-  --bg:#dfe5db; --panel:#ffffff; --ink:#15171c; --muted:#646b76; --line:#eceef1; --chip:#f3f4f6;
+  --bg:#dfe5db; --panel:rgba(255,255,255,.58); --panel-strong:rgba(255,255,255,.84); --rim:rgba(255,255,255,.7);
+  --ink:#15171c; --muted:#59606b; --line:rgba(17,24,39,.08); --chip:rgba(255,255,255,.55);
+  --glass:0 12px 36px rgba(31,41,30,.14),inset 0 1px 0 rgba(255,255,255,.8),inset 0 -1px 0 rgba(0,0,0,.04);
   --btn:#121418; --btn-ink:#ffffff; --warm:#fff4e3; --warm-line:#fadcae;
   --ok:#22a55b; --wait:#f0a020; --err:#e5484d; --rest:#a3a9b3; --done:#3b82f6;
   --shadow:0 1px 2px rgba(17,24,39,.05),0 8px 24px rgba(17,24,39,.07);
@@ -12,7 +14,9 @@
   color-scheme:light;
 }
 body[data-dark="1"]{
-  --bg:#0e1216; --panel:#181c22; --ink:#eef0f3; --muted:#a0a7b2; --line:#262b33; --chip:#232831;
+  --bg:#0e1216; --panel:rgba(22,25,32,.56); --panel-strong:rgba(22,25,32,.86); --rim:rgba(255,255,255,.14);
+  --ink:#eef0f3; --muted:#a8afba; --line:rgba(255,255,255,.08); --chip:rgba(255,255,255,.08);
+  --glass:0 14px 40px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.14),inset 0 -1px 0 rgba(0,0,0,.35);
   --btn:#eef0f3; --btn-ink:#121418; --warm:#2a2216; --warm-line:#4a3a1f;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35);
   color-scheme:dark;
@@ -21,9 +25,62 @@ html,body{height:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;font-size:13px;transition:background .5s}
 #scene{position:fixed;inset:0;width:100%;height:100%;display:block;outline:none;cursor:grab}
 #scene:active{cursor:grabbing}
+#vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(20,28,22,.22) 100%)}
+body[data-dark="1"] #vignette{background:radial-gradient(ellipse at 50% 45%,transparent 50%,rgba(0,0,0,.45) 100%)}
+.tilt{position:fixed;left:0;right:0;height:34%;pointer-events:none;opacity:0;transition:opacity .6s ease;-webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px)}
+.tilt.top{top:0;-webkit-mask-image:linear-gradient(#000,transparent);mask-image:linear-gradient(#000,transparent)}
+.tilt.bot{bottom:0;-webkit-mask-image:linear-gradient(transparent,#000);mask-image:linear-gradient(transparent,#000)}
+body.mini .tilt{opacity:1}
+body.mini #scene{filter:saturate(1.22) contrast(1.06)}
+body.touring .card:not(#caption){opacity:0;pointer-events:none}
+body.touring .ftag,body.touring .bub{opacity:0}
+#caption{bottom:calc(env(safe-area-inset-bottom,0px) + 40px);left:50%;transform:translateX(-50%);padding:16px 28px;text-align:center;min-width:320px}
+#caption b{display:block;font-size:30px;font-weight:800;letter-spacing:-.01em}
+#caption span{display:block;font-size:14px;color:var(--muted);margin-top:4px}
+body[data-skin="cyber"]{--panel:rgba(22,10,40,.62);--panel-strong:rgba(30,14,54,.9);--rim:rgba(255,80,220,.55);--ink:#f4ecff;--muted:#b7a6d9;--line:rgba(255,255,255,.1);--chip:rgba(255,255,255,.08);--btn:#ff3fd2;--btn-ink:#14041f;color-scheme:dark}
+body[data-skin="pixel"]{--font:ui-monospace,'SF Mono',Menlo,monospace}
+body[data-skin="pixel"] canvas{image-rendering:pixelated}
+body[data-skin="pixel"] .card{border-radius:4px}
+body[data-skin="nii"]{--panel:rgba(242,232,210,.82);--panel-strong:rgba(246,238,220,.95);--rim:rgba(160,120,70,.35);--ink:#2b2117;--muted:#6f604c;--btn:#8c2f22;--btn-ink:#fff7e8;--font:'PT Mono',ui-monospace,Menlo,monospace}
+#pal{position:fixed;inset:0;z-index:30;display:flex;justify-content:center;align-items:flex-start;padding:14vh 16px 16px;background:rgba(10,12,16,.28)}
+#pal .card{position:relative;width:min(560px,100%);padding:0;overflow:hidden}
+#pal input{width:100%;border:0;background:transparent;font:inherit;font-size:17px;color:var(--ink);padding:16px 18px;outline:none;border-bottom:1px solid var(--line)}
+#pal ul{list-style:none;margin:0;padding:6px;max-height:min(52vh,420px);overflow:auto}
+#pal li{display:flex;gap:10px;align-items:center;padding:9px 12px;border-radius:10px;cursor:pointer}
+#pal li small{margin-left:auto;color:var(--muted)}
+#pal li[aria-selected="true"]{background:var(--chip);box-shadow:inset 0 0 0 1px var(--rim)}
+#pal .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;width:62px;flex:none}
+.ftag.hover{background:rgba(255,255,255,.92)!important;color:#111}
+.say{position:absolute;transform:translate(-50%,-100%);pointer-events:none;max-width:200px;padding:5px 9px;border-radius:12px;font-size:11px;font-weight:600;line-height:1.3;color:var(--ink);
+  background:rgba(255,255,255,.82);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 4px 14px rgba(0,0,0,.14);animation:pop .4s cubic-bezier(.34,1.56,.64,1)}
+body[data-dark="1"] .say{background:rgba(30,34,42,.86)}
 button{font:inherit;color:inherit;cursor:pointer}
 button:focus-visible,input:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--done);outline-offset:2px}
-.card{position:absolute;background:var(--panel);border-radius:12px;box-shadow:var(--shadow);border:1px solid var(--line)}
+.card{position:absolute;background:var(--panel);border-radius:18px;box-shadow:var(--glass);border:1px solid var(--rim);
+  -webkit-backdrop-filter:blur(22px) saturate(185%);backdrop-filter:blur(22px) saturate(185%);
+  transition:opacity .5s ease,translate .7s cubic-bezier(.16,1,.3,1),background .4s ease,box-shadow .4s ease}
+@starting-style{.card{opacity:0;translate:0 12px}}
+/* liquid glass: lit rim (bright top-left, dim bottom-right) and a faint grain against banding */
+.card::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
+  background:linear-gradient(135deg,rgba(255,255,255,.95),rgba(255,255,255,.12) 38%,rgba(255,255,255,0) 60%,rgba(255,255,255,.45));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+body[data-dark="1"] .card::before{background:linear-gradient(135deg,rgba(255,255,255,.35),rgba(255,255,255,.04) 40%,rgba(255,255,255,0) 60%,rgba(255,255,255,.18))}
+.card::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.left::before,.left::after,.tr::before,.tr::after{display:none}
+.left,.tr{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.chat,.chats,.modal{background:var(--panel-strong)}
+.ag,.fl,.task,.conv,.fin{transition:background .2s ease,transform .25s cubic-bezier(.16,1,.3,1)}
+.ag:hover,.fl:hover,.conv:hover{transform:translateX(2px)}
+.btn{position:relative;overflow:hidden;transition:transform .2s cubic-bezier(.16,1,.3,1),box-shadow .2s ease,background .2s ease}
+.btn:not(.ghost){background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0)),var(--btn);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 2px 10px rgba(0,0,0,.18)}
+.btn:active{transform:scale(.97)}
+.btn:not(.ghost)::after{content:"";position:absolute;top:0;bottom:0;left:-60%;width:40%;transform:skewX(-20deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);transition:left .6s ease}
+.btn:not(.ghost):hover::after{left:130%}
+.btn.ghost{border:1px solid var(--rim)}
+@media (prefers-reduced-transparency:reduce){.card,.tr .btn.ghost,.bub,.ftag{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}.card{background:var(--panel-strong)}.card::after{display:none}}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.card{background:var(--panel-strong)}}
+.in-app .brand{left:86px}
 .muted{color:var(--muted)}
 .dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
 .s-working{background:var(--ok)}.s-waiting{background:var(--wait)}.s-done{background:var(--done)}.s-resting{background:var(--rest)}.s-error{background:var(--err)}
@@ -82,7 +139,7 @@ body[data-dark="1"] .counts .hl{background:#3d2e14;color:#ffd38a}
 /* top right */
 .tr{top:calc(env(safe-area-inset-top,0px) + 12px);right:max(12px,env(safe-area-inset-right,0px));display:flex;gap:8px;background:none;border:0;box-shadow:none}
 .tr .btn{min-height:34px;padding:0 12px;display:flex;align-items:center;gap:7px;box-shadow:var(--shadow)}
-.tr .btn.ghost{background:var(--panel);border:1px solid var(--line)}
+.tr .btn.ghost{background:var(--panel);border:1px solid var(--rim);-webkit-backdrop-filter:blur(18px) saturate(180%);backdrop-filter:blur(18px) saturate(180%);box-shadow:var(--glass)}
 
 /* right card */
 .right{top:calc(env(safe-area-inset-top,0px) + 58px);right:max(12px,env(safe-area-inset-right,0px));width:292px;overflow:hidden;display:flex;flex-direction:column;max-height:calc(100% - 58px - 330px)}
@@ -130,12 +187,12 @@ body[data-dark="1"] .counts .hl{background:#3d2e14;color:#ffd38a}
 
 /* 3D overlays */
 #ov{position:fixed;inset:0;pointer-events:none}
-.ftag{position:absolute;transform:translate(calc(-100% - 6px),-50%);pointer-events:auto;display:flex;align-items:center;gap:7px;border:0;background:rgba(24,27,33,.88);color:#fff;border-radius:8px;padding:5px 9px 5px 5px;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.18);transition:background .2s}
+.ftag{position:absolute;transform:translate(calc(-100% - 6px),-50%);pointer-events:auto;display:flex;align-items:center;gap:7px;border:0;background:rgba(24,27,33,.58);-webkit-backdrop-filter:blur(14px) saturate(180%);backdrop-filter:blur(14px) saturate(180%);outline:1px solid rgba(255,255,255,.16);outline-offset:-1px;color:#fff;border-radius:8px;padding:5px 9px 5px 5px;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.18);transition:background .2s}
 .ftag .n{width:18px;height:18px;border-radius:5px;display:grid;place-items:center;font-size:11px;font-weight:700}
 .ftag .c{opacity:.7;font-weight:500}
 .ftag .w{display:flex;align-items:center;gap:3px;color:#ffc65c}
 .ftag[aria-current="true"]{background:#fff;color:#111}
-.bub{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;border:0;padding:0;width:30px;height:30px;border-radius:50%;background:#fff;box-shadow:0 3px 10px rgba(0,0,0,.16);display:grid;place-items:center}
+.bub{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;border:0;padding:0;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.74);-webkit-backdrop-filter:blur(12px) saturate(180%);backdrop-filter:blur(12px) saturate(180%);box-shadow:0 4px 14px rgba(0,0,0,.16),inset 0 1px 0 rgba(255,255,255,.9);animation:pop .5s cubic-bezier(.34,1.56,.64,1);display:grid;place-items:center}
 .bub.sel{box-shadow:0 0 0 3px var(--done),0 3px 10px rgba(0,0,0,.16)}
 .bub.waiting{background:var(--wait);width:auto;height:auto;max-width:230px;border-radius:10px;padding:6px 10px;color:#fff;font-size:12px;font-weight:700;line-height:1.3;text-align:center;animation:bob 1s ease-in-out infinite}
 .bub.waiting::after{content:"";position:absolute;left:50%;bottom:-5px;margin-left:-5px;border:5px solid transparent;border-bottom:0;border-top-color:var(--wait)}
@@ -195,6 +252,7 @@ body[data-dark="1"] .diff .a{color:#7ee2a0}body[data-dark="1"] .diff .d{color:#f
 .hire select,.hire input,.hire textarea{width:100%;box-sizing:border-box;font:inherit;font-size:13px;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:8px}
 .hire textarea{resize:vertical;min-height:70px}
 .bub.resting{width:auto;height:24px;padding:0 9px;border-radius:99px}
+@keyframes pop{from{scale:.3;opacity:0}to{scale:1;opacity:1}}
 @keyframes bob{50%{margin-top:-5px}}
 .bub b{color:#fff;font-weight:800;font-size:16px}
 .bub.resting b{color:#8a909b;font-size:12px;letter-spacing:1px}
@@ -265,8 +323,11 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
 @media (max-width:560px){.tr .lbl{display:none}.counts span{padding:5px 6px}.counts .t{display:none}.brand .live{display:none}.chat{left:12px;width:auto}}
 </style>
 
+<div id="vignette" aria-hidden="true"></div>
 <canvas id="scene" tabindex="0" aria-label="3D-здание ИИ-офиса. Тяните, чтобы вращать, нажмите на этаж, чтобы заглянуть внутрь."></canvas>
+<div class="tilt top" aria-hidden="true"></div><div class="tilt bot" aria-hidden="true"></div>
 <div id="ov"></div>
+<div id="says" aria-hidden="true" style="position:fixed;inset:0;pointer-events:none"></div>
 
 <div class="card brand">
   <div class="logo" aria-hidden="true">И</div>
@@ -279,6 +340,9 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
 
 <div class="card tr">
   <button class="btn ghost" id="darkBtn" aria-pressed="false"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span class="lbl" id="darkLbl">Тёмная</span></button>
+  <button class="btn ghost" id="tourBtn" title="Кино-тур: камера сама облетает офис"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg><span class="lbl">Тур</span></button>
+  <button class="btn ghost" id="skinBtn" title="Скин офиса"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.6-.8 1.6-1.7 0-.9-.7-1.3-.7-2.1 0-.9.7-1.6 1.6-1.6H17a4 4 0 0 0 4-4c0-4.7-4-8.6-9-8.6z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10.5" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/></svg><span class="lbl" id="skinLbl">Стекло</span></button>
+  <button class="btn ghost" id="miniBtn" aria-pressed="false" title="Миниатюра: размытые края, как у макета"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 18h18" opacity=".45"/><circle cx="12" cy="12" r="3"/></svg><span class="lbl">Миниатюра</span></button>
   <button class="btn ghost" id="soundBtn" aria-pressed="false" title="Звуки офиса"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path id="soundWave" d="M15.5 8.5a5 5 0 0 1 0 7"/></svg><span class="lbl" id="soundLbl">Звук</span></button>
   <button class="btn ghost" id="chatsBtn" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="lbl">Чаты</span></button>
   <button class="btn ghost" id="hireBtn" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="lbl">Нанять</span></button>
@@ -334,7 +398,9 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
   <button id="home" aria-label="Всё здание"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 21V5l8-3 8 3v16z"/><path d="M9 21v-4h6v4M8 8h2M14 8h2M8 12h2M14 12h2"/></svg></button>
 </div>
 
+<div class="card" id="caption" hidden aria-live="polite"><b></b><span></span></div>
 <div id="chatWrap"></div>
+<div id="palWrap"></div>
 <div id="connectWrap"></div>
 <div id="hireWrap"></div>
 <div id="chatsWrap"></div>
@@ -347,6 +413,7 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
 (() => {
 'use strict';
 const $ = (id) => document.getElementById(id);
+if (/AIOfficeApp/.test(navigator.userAgent)) document.documentElement.classList.add('in-app');
 // page errors go to the hub log (the app's web view has no visible console)
 const reportErr = (msg) => { try { fetch('/api/clienterror', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Office': '1' }, body: JSON.stringify({ msg: String(msg).slice(0, 3000) }) }).catch(() => {}); } catch (e) {} };
 addEventListener('error', (e) => reportErr((e.message || '') + ' @' + e.filename + ':' + e.lineno + ':' + e.colno + ' ' + ((e.error && e.error.stack) || '')));
@@ -437,7 +504,13 @@ controls.minZoom = 0.55; controls.maxZoom = 4.5; controls.screenSpacePanning = t
 const HOME = { target: new THREE.Vector3(0, 7, 0), zoom: 1 };
 controls.target.copy(HOME.target); controls.update();
 
-const hemi = new THREE.HemisphereLight(0xffffff, 0xb7c2ae, 0.8); scene.add(hemi);
+// soft studio environment: glass, metal and screens pick up reflections instead of reading as flat colour
+{ const env = new THREE.Scene(), sky = textTex(64, 256, (c, w, h) => { const gr = c.createLinearGradient(0, 0, 0, h);
+    gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.45, '#dfe9f2'); gr.addColorStop(0.55, '#c9d6c2'); gr.addColorStop(1, '#6f7a68'); c.fillStyle = gr; c.fillRect(0, 0, w, h); });
+  env.add(new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), new THREE.MeshBasicMaterial({ map: sky, side: THREE.BackSide })));
+  [[30, 25, 10], [-25, 20, -20]].forEach(([x, y, z]) => { const pl = new THREE.Mesh(new THREE.PlaneGeometry(18, 10), new THREE.MeshBasicMaterial({ color: 0xffffff })); pl.position.set(x, y, z); pl.lookAt(0, 0, 0); env.add(pl); });
+  scene.environment = new THREE.PMREMGenerator(renderer).fromScene(env, 0.04).texture; }
+const hemi = new THREE.HemisphereLight(0xffffff, 0xb7c2ae, 0.55); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff3e2, 1.3);
 sun.position.set(-30, 60, 35); sun.castShadow = true;
 sun.shadow.mapSize.set(4096, 4096); sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.03;
@@ -666,8 +739,9 @@ function buildLevel(f) {
   box(1.4, 0.05, 2.4, M.pingpong, 4.3, 0.72, -3.5, inside); box(1.4, 0.12, 0.02, M.white, 4.3, 0.8, -3.5, inside);
   [[-0.6, -1.1], [0.6, -1.1], [-0.6, 1.1], [0.6, 1.1]].forEach(([dx, dz]) => box(0.05, 0.7, 0.05, M.dark, 4.3 + dx, 0.35, -3.5 + dz, inside));
   [[-6.7, -4.7], [2.9, -4.8], [6.7, 4.7], [2.8, 4.6]].forEach(([x, z]) => { cyl(0.26, 0.2, 0.45, M.white, x, 0.23, z, inside, 14); const p = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 1), M.leaf); p.position.set(x, 0.85, z); p.castShadow = true; inside.add(p); });
+  const anims = decorate(inside, f, ih);
   const agents = new THREE.Group(); inside.add(agents);
-  const L = { f, lvl, g, base, walls, inside, agents, glass: gm, boardTex: { c: bc, t: btex, sig: null } };
+  const L = { f, lvl, g, base, walls, inside, agents, glass: gm, pet: makePet(inside, f), anim: anims, boardTex: { c: bc, t: btex, sig: null } };
   if (ax) { L.lvl = -1; ANNEX_L = L; } else LEVELS[lvl] = L;
   f.L = L; return L;
 }
@@ -677,10 +751,7 @@ box(W + 0.5, 0.4, D + 0.5, M.slab, 0, 0.2, 0, roof);
 [[W + 0.5, 0.6, 0.2, 0, 0.7, D / 2 + 0.15], [W + 0.5, 0.6, 0.2, 0, 0.7, -D / 2 - 0.15], [0.2, 0.6, D + 0.5, W / 2 + 0.15, 0.7, 0], [0.2, 0.6, D + 0.5, -W / 2 - 0.15, 0.7, 0]].forEach(a => box(a[0], a[1], a[2], M.slab, a[3], a[4], a[5], roof));
 { const t = textTex(256, 256, (g) => { g.fillStyle = '#3a3e45'; g.beginPath(); g.arc(128, 128, 124, 0, 7); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 8; g.beginPath(); g.arc(128, 128, 100, 0, 7); g.stroke(); g.fillStyle = '#fff'; g.fillRect(84, 70, 22, 116); g.fillRect(150, 70, 22, 116); g.fillRect(84, 117, 88, 22); });
   const h = new THREE.Mesh(new THREE.CircleGeometry(3, 40), new THREE.MeshStandardMaterial({ map: t, roughness: 0.9 })); h.rotation.x = -Math.PI / 2; h.position.set(-3.5, 0.42, -0.5); h.receiveShadow = true; roof.add(h); }
-box(5.5, 0.15, 4.2, M.deck, 3.8, 0.47, 2.2, roof);
-for (let i = 0; i < 9; i++) box(0.12, 0.1, 4.2, M.wood, 1.3 + i * 0.62, 2.3, 2.2, roof);
-[[1.2, 0.4], [6.4, 0.4], [1.2, 4], [6.4, 4]].forEach(([x, z]) => box(0.15, 1.85, 0.15, M.wood, x, 1.4, z, roof));
-box(2.4, 0.4, 0.8, M.sofa, 3.8, 0.75, 3.6, roof);
+// your penthouse stands here: buildPenthouse()
 for (let i = 0; i < 4; i++) { const p = box(1.4, 0.08, 2, M.solar, 2.2 + i * 1.6, 0.9, -3.4, roof); p.rotation.x = -0.4; }
 box(1.2, 0.8, 1, M.metal, -6, 0.8, -3.8, roof); box(1.2, 0.8, 1, M.metal, -6, 0.8, -2.4, roof);
 { const t = textTex(1024, 256, (g, w, h) => { g.fillStyle = '#16181c'; g.fillRect(0, 0, w, h); g.fillStyle = '#fff'; g.font = '800 150px Onest'; g.textAlign = 'center'; g.fillText('ИИ-ОФИС', w / 2, 180); g.fillStyle = '#e5484d'; g.beginPath(); g.arc(w - 60, 60, 22, 0, 7); g.fill(); });
@@ -768,6 +839,7 @@ function buildElevator() {
   elevCab.position.y = BASE + 0.05;
 }
 function rebuild() {
+  if (!PH.g) buildPenthouse();
   const openName = S.open && LEVELS.length && FLOORS[S.floor] ? FLOORS[S.floor].name : null;
   AG.forEach(r => r.bub.remove()); AG.clear();
   allLevels().forEach(L => { scene.remove(L.g); if (L.tag) L.tag.remove(); L.g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); });
@@ -932,6 +1004,10 @@ $('tBoard').onclick = () => { S.tab = 'board'; renderUI(); };
 $('finToggle').onclick = () => { S.finOpen = !S.finOpen; $('finToggle').setAttribute('aria-expanded', String(S.finOpen)); $('finToggle').style.transform = S.finOpen ? '' : 'rotate(180deg)'; renderUI(); };
 $('connectBtn').onclick = renderConnect;
 $('hireBtn').onclick = () => openHire('');
+$('skinBtn').onclick = () => { const ks = Object.keys(SKINS); setSkin(ks[(ks.indexOf(S.skin) + 1) % ks.length]); };
+$('tourBtn').onclick = () => (S.tour ? stopTour() : startTour());
+S.mini = store.get('office-mini') === '1'; document.body.classList.toggle('mini', S.mini); $('miniBtn').setAttribute('aria-pressed', String(S.mini));
+$('miniBtn').onclick = () => { S.mini = !S.mini; document.body.classList.toggle('mini', S.mini); store.set('office-mini', S.mini ? '1' : '0'); $('miniBtn').setAttribute('aria-pressed', String(S.mini)); };
 $('usageBtn').onclick = () => openUsage();
 $('stopAllBtn').onclick = () => {
   if (!S.stopArm) { S.stopArm = true; $('stopAllBtn').textContent = 'Точно остановить?'; setTimeout(() => { S.stopArm = false; $('stopAllBtn').textContent = 'Стоп всем'; }, 4000); return; }
@@ -952,6 +1028,7 @@ $('cmd').addEventListener('submit', (e) => { e.preventDefault(); const v = $('cm
   $('cmdText').value = ''; renderUI(); });
 document.addEventListener('keydown', (e) => {
   if (e.target.matches('input')) return;
+  if (e.key === 'Escape' && S.tour) { stopTour(); return; }
   if (e.key === 'Escape') { if ($('connectWrap').innerHTML) $('connectWrap').innerHTML = ''; else if (S.chat) { S.chat = null; renderChat(); } else if (S.sel) { S.sel = null; renderUI(); } else closeFloor(); }
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role="button"]')) { e.preventDefault(); e.target.click(); }
   if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); const cur = S.open && !FLOORS[S.floor].annex ? FLOORS[S.floor].n : 0, n = Math.max(1, Math.min(NF, cur + (e.key === 'ArrowUp' ? 1 : -1))); openFloor(FLOORS.findIndex(f => f.n === n)); }
@@ -959,6 +1036,13 @@ document.addEventListener('keydown', (e) => {
 // picking
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2(); let down = null;
 canvas.addEventListener('pointerdown', e => down = [e.clientX, e.clientY]);
+let hoverAt = 0;
+canvas.addEventListener('pointermove', e => {       // light up the floor under the cursor
+  if (e.buttons || performance.now() - hoverAt < 60) return; hoverAt = performance.now();
+  ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ptr, camera);
+  const hit = ray.intersectObjects(pickables.filter(o => o.parent.visible), false)[0], L = hit && hit.object.userData.floor ? hit.object.userData.floor.L : null;
+  if (L !== S.hoverL) { S.hoverL = L; canvas.style.cursor = L ? 'pointer' : ''; allLevels().forEach(x => x.tag && x.tag.classList.toggle('hover', x === L)); }
+});
 canvas.addEventListener('pointerup', e => {
   if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
   ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ptr, camera);
@@ -1036,6 +1120,20 @@ function boardEvents(st) {
     if (was && was.status !== 'done' && b.status === 'done') S.confetti = { floor: name, t0: now };
   });
   S.prevBoards = JSON.parse(JSON.stringify(st.boards || {}));
+  // pets react: a finished task makes them hop, a stuck agent makes them hide
+  const last = S.lastStat || {};
+  (st.agents || []).forEach(h => { const was = last[h.id];
+    if (was && was !== h.status) emoteFor(h, was);
+    if (was && was !== h.status && (h.status === 'done' || h.status === 'error')) { const a = byId(h.id), f = a && FLOORS[a.fi];
+      if (f) (S.petMood = S.petMood || {})[f.name] = { type: h.status === 'done' ? 'happy' : 'scared', t0: performance.now() }; }
+    last[h.id] = h.status; });
+  S.lastStat = last;
+  updatePenthouse(st);
+  const seen = S.roomSeen || {};
+  Object.entries(st.boards || {}).forEach(([name, b]) => { const n = (b.room || []).length, had = seen[name];
+    if (had != null && n > had) b.room.slice(had - n).forEach(m => visitFor(m.from, m.to, m.text));
+    seen[name] = n; });
+  S.roomSeen = seen;
   applySeason();
   // a Grok bot reported something new: it walks over the corridor
   const lens = S.grokLens || {};
@@ -1065,11 +1163,12 @@ function applyDark() {
   const d = S.dark; document.body.dataset.dark = d ? '1' : '0';
   $('darkBtn').setAttribute('aria-pressed', String(d)); $('darkLbl').textContent = d ? 'Светлая' : 'Тёмная';
   scene.background = new THREE.Color(d ? '#0e1216' : '#dfe5db');
-  hemi.intensity = d ? 0.28 : 0.8; hemi.color.set(d ? '#8796c8' : '#ffffff'); hemi.groundColor.set(d ? '#1a2030' : '#b7c2ae');
+  hemi.intensity = d ? 0.22 : 0.55; hemi.color.set(d ? '#8796c8' : '#ffffff'); hemi.groundColor.set(d ? '#1a2030' : '#b7c2ae');
   sun.intensity = d ? 0.35 : 1.3; sun.color.set(d ? '#9fb0ff' : '#fff3e2');
   M.glass.emissive.set(d ? '#ffc777' : '#000000'); M.glass.emissiveIntensity = d ? 0.32 : 0;
   M.lamp.color.set(d ? '#ffe6a6' : '#e8e4da');
   updateSun();
+  applySkin();
   renderUI();
 }
 function resize() { const w = innerWidth, h = innerHeight, a = w / h, v = w < 760 ? 70 : 52;
@@ -1089,10 +1188,18 @@ function frameBody(t) {
   controls.update();
   // cutaway: floors above the open one disappear, the open floor loses its facade
   const openL = S.open ? FLOORS[S.floor].L : null;
-  allLevels().forEach(L => { if (L.glass) { const busy = L.f.agents.some(x => x.status === 'working'); L.glass.emissive.set(S.dark ? '#ffc777' : '#000000'); L.glass.emissiveIntensity = S.dark ? (busy ? 0.55 : 0.04) : 0; }
-    const vis = !openL || openL.lvl < 0 || L.lvl < 0 || L.lvl <= openL.lvl; L.g.visible = vis; L.tag.style.display = vis ? '' : 'none';
-    L.walls.visible = L !== openL; L.inside.visible = L === openL; });
-  roof.visible = !openL || openL.lvl < 0;
+  allLevels().forEach(L => {
+    if (L.glass) { const busy = L.f.agents.some(x => x.status === 'working'), hov = S.hoverL === L && !S.open;
+      L.glass.emissive.set(hov ? L.f.color : S.dark ? '#ffc777' : '#000000'); L.glass.emissiveIntensity = hov ? 0.32 : S.dark ? (busy ? 0.55 : 0.04) : 0; }
+    const above = !!openL && openL.lvl >= 0 && L.lvl > openL.lvl;       // floors over the open one slide up and away
+    L.lift = (L.lift || 0) + ((above ? 9 : 0) - (L.lift || 0)) * (reduce ? 1 : 0.075);
+    L.g.position.y = L.base + L.lift;
+    L.g.visible = L.lift < 8.7; L.tag.style.display = L.g.visible && !above ? '' : 'none';
+    L.walls.visible = L !== openL; L.inside.visible = L === openL;
+    if (L.inside.visible && L.pet) petTick(L, t); });
+  const rl = openL && openL.lvl >= 0 ? 9 : 0; roof.userData.lift = (roof.userData.lift || 0) + (rl - (roof.userData.lift || 0)) * (reduce ? 1 : 0.075);
+  roof.position.y = BASE + NF * H + roof.userData.lift; roof.visible = roof.userData.lift < 8.7;
+  ambientTick(t); socialTick(t); weatherExtras(t); tourTick(t);
   // agents
   AG.forEach(r => { const a = r.a, b = r.body, p = r.phase, base = a.status === 'resting' ? 0.86 : 0.98;
     if (r.goal) {   // walk to the new seat instead of teleporting
@@ -1111,7 +1218,15 @@ function frameBody(t) {
     if (used >= 100 && a.status !== 'resting') { b.rotation.z = 0.5; b.position.y = base - 0.05; }   // out of limit: dozing at the desk
     else if (used >= 85 && a.status !== 'resting') { b.scale.set(1.05, 0.9, 1.05); }                 // tired
     else if (a.status !== 'resting') b.scale.set(1, 1, 1);
+    if (r.emote && !reduce) {         // short emotions: joy jump, head shake, yawn
+      const k = (t - r.emote.t0) / r.emote.dur;
+      if (k >= 1) r.emote = null;
+      else if (r.emote.type === 'joy') { b.position.y = base + Math.sin(k * Math.PI) * 0.55; b.rotation.y = k * Math.PI * 2; }
+      else if (r.emote.type === 'shake') b.rotation.z = Math.sin(k * Math.PI * 8) * 0.25 * (1 - k);
+      else if (r.emote.type === 'yawn') b.scale.set(1 - Math.sin(k * Math.PI) * 0.06, 1 + Math.sin(k * Math.PI) * 0.16, 1 - Math.sin(k * Math.PI) * 0.06);
+    }
     finishBubble(r, a, base); });
+  saysTick(); planesTick(t);
   // floor tags at the left-front corner of each level
   allLevels().forEach(L => { v3.set(-W / 2 - 0.4, H * 0.55, D / 2 + 0.4); L.g.localToWorld(v3); v3.project(camera);
     L.tag.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px'; L.tag.style.top = ((1 - v3.y) / 2 * innerHeight) + 'px'; });
@@ -1127,7 +1242,7 @@ function frameBody(t) {
     if (elevCab) { const goal = S.elev && t - S.elev.t0 < 6000 ? S.elev.y + 0.33 : BASE + 0.05; elevCab.position.y += (goal - elevCab.position.y) * 0.05; }
     walkerTick(t); confettiTick(t);
     if (!S.sunAt || t - S.sunAt > 60000) { S.sunAt = t; updateSun(); }
-    AG.forEach(r => { if (r.standupUntil && t > r.standupUntil) { r.standupUntil = 0; place(r.a); } });
+    AG.forEach(r => { if ((r.standupUntil && t > r.standupUntil) || (r.visitUntil && t > r.visitUntil)) { r.standupUntil = r.visitUntil = 0; place(r.a); } });
     weatherTick();
     rotors.forEach(r => r.rotation.y = t / 30);
     const cz = PZ + 24 - ((t / 25) % 1000) / 1000 * 26; movingCar.position.z = cz;
@@ -1370,7 +1485,7 @@ function beep(freq, dur, vol) {
     o.connect(g).connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + dur); } catch (e) {}
 }
 function paintSound() { $('soundBtn').setAttribute('aria-pressed', String(S.sound)); $('soundLbl').textContent = S.sound ? 'Звук вкл' : 'Звук'; $('soundWave').style.display = S.sound ? '' : 'none'; }
-$('soundBtn').onclick = () => { S.sound = !S.sound; store.set('office-sound', S.sound ? '1' : '0'); paintSound(); beep(880, 0.15, 0.06); };
+$('soundBtn').onclick = () => { S.sound = !S.sound; store.set('office-sound', S.sound ? '1' : '0'); paintSound(); beep(880, 0.15, 0.06); soundscape(); };
 function soundsFor(prevAgents) {
   ALL().forEach(a => { const was = prevAgents.get(a.id); if (!was) return;
     if (a.status === 'waiting' && was !== 'waiting') { beep(988, 0.18, 0.07); setTimeout(() => beep(1319, 0.25, 0.07), 160); }
@@ -1447,6 +1562,325 @@ function openUsage() {
       <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" data-closehire="1">Закрыть</button></div></div></div>`;
   }).catch(e => { $('hireWrap').innerHTML = ''; toastErr(e); });
 }
+// ---- glow, themes, neon, pets, penthouse, sky life
+const glowTex = textTex(64, 64, (c) => { const gr = c.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = gr; c.fillRect(0, 0, 64, 64); });
+let GLOWS = [];
+function makeGlow(color, size, x, y, z) {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.25 }));
+  sp.scale.set(size, size, 1); sp.position.set(x, y, z); GLOWS.push(sp); return sp;
+}
+const hashStr = (str) => [...String(str)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+const THEMES = ['studio', 'library', 'loft', 'lounge'];
+function neon(inside, text, color, ih) {
+  const tex = textTex(512, 128, (c, w) => { c.font = '800 70px Onest'; c.textAlign = 'center'; c.shadowColor = color; c.shadowBlur = 26; c.fillStyle = '#ffffff'; c.fillText(text.slice(0, 14), w / 2, 88); c.shadowBlur = 8; c.fillStyle = color; c.fillText(text.slice(0, 14), w / 2, 88); });
+  const pl = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthWrite: false }));
+  pl.position.set(-W / 2 + 0.25, ih - 0.4, 2.6); pl.rotation.y = Math.PI / 2; inside.add(pl);
+  inside.add(makeGlow(color, 2.8, -W / 2 + 0.45, ih - 0.4, 2.6));
+}
+function decorate(inside, f, ih) {
+  const anim = [], theme = f.annex ? 'news' : THEMES[hashStr(f.name) % THEMES.length];
+  const floorCol = { studio: '#bfc2c4', library: '#c9b08e', loft: '#b98d5f', lounge: '#e6e2db', news: '#3d414a' }[theme];
+  box(W - 0.45, 0.012, D - 0.45, mat(floorCol, { roughness: theme === 'news' ? 0.35 : 0.9 }), 0, 0.006, 0, inside, { noCast: true });
+  if (theme === 'loft') for (let z = -D / 2 + 0.6; z < D / 2; z += 0.55) box(W - 0.45, 0.004, 0.02, mat('#8f6a45'), 0, 0.014, z, inside, { noCast: true });
+  box(W - 0.3, 0.08, 0.02, mat(f.color), 0, ih - 0.15, -D / 2 + 0.23, inside, { noCast: true });          // accent stripe in the floor colour
+  TBL.forEach(zc => [-4.6, -0.1].forEach(x => inside.add(makeGlow('#ffe2a8', 1.7, x, ih - 0.75, zc))));     // pendant lamps glow
+  neon(inside, f.annex ? 'GROK' : f.name, f.color, ih);
+  if (theme === 'studio') {
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) { const x = 3.3 + c * 0.95, y = 1.15 + r * 0.62;
+      box(0.9, 0.56, 0.05, M.monitor, x, y, -D / 2 + 0.27, inside); const sc = new THREE.Mesh(new THREE.PlaneGeometry(0.82, 0.48), M.screen); sc.position.set(x, y, -D / 2 + 0.3); inside.add(sc); }
+  } else if (theme === 'library') {
+    box(0.45, 1.2, 2.6, M.wood, -W / 2 + 0.45, 0.6, 3.2, inside);
+    for (let r = 0; r < 2; r++) for (let i = 0; i < 6; i++) box(0.3, 0.34, 0.16, mat(['#7c3aed', '#0ea5e9', '#f97316', '#16a34a', '#e11d48', '#334155'][(i * 3 + r) % 6]), -W / 2 + 0.6, 0.3 + r * 0.5, 2.2 + i * 0.36, inside, { noCast: true });
+    cyl(0.04, 0.12, 0.8, M.wood, 3.2, 0.4, 4.0, inside, 8);
+    const gl = new THREE.Mesh(new THREE.IcosahedronGeometry(0.36, 2), mat('#3b82f6', { roughness: 0.4 })); gl.position.set(3.2, 1.05, 4.0); gl.castShadow = true; inside.add(gl); anim.push(t => { gl.rotation.y = t / 2500; });
+  } else if (theme === 'loft') {
+    const brick = textTex(256, 128, (c, w, h) => { c.fillStyle = '#9a4f3a'; c.fillRect(0, 0, w, h); c.fillStyle = '#c9b8a6'; for (let y = 0; y < h; y += 16) { c.fillRect(0, y, w, 2); for (let x = (y / 16) % 2 ? 0 : 16; x < w; x += 32) c.fillRect(x, y, 2, 16); } });
+    const bp = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 1.9), new THREE.MeshStandardMaterial({ map: brick, roughness: 0.95 })); bp.position.set(4.5, 1.15, -D / 2 + 0.23); inside.add(bp);
+    box(0.7, 1.6, 0.6, mat('#7b61ff'), 3.4, 0.8, 4.4, inside);
+    const ascr = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.4), new THREE.MeshBasicMaterial({ color: '#36f9c4' })); ascr.position.set(3.4, 1.25, 4.71); inside.add(ascr); inside.add(makeGlow('#36f9c4', 1.1, 3.4, 1.25, 4.8));
+    [[2.2, 4.5, '#f2b632'], [2.4, 3.4, '#e5484d']].forEach(([x, z, c]) => { const bb = new THREE.Mesh(new THREE.SphereGeometry(0.45, 16, 10), mat(c)); bb.scale.y = 0.55; bb.position.set(x, 0.25, z); bb.castShadow = true; inside.add(bb); });
+  } else if (theme === 'lounge') {
+    box(2.6, 1.0, 0.5, new THREE.MeshStandardMaterial({ color: '#7cc7ef', transparent: true, opacity: 0.5, roughness: 0.05 }), 4.4, 1.25, -D / 2 + 0.5, inside, { noCast: true });
+    box(2.7, 0.08, 0.55, M.dark, 4.4, 0.72, -D / 2 + 0.5, inside);
+    const fish = [0, 1, 2, 3].map(i => { const fs = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.2, 6), mat(['#f97316', '#facc15', '#ef4444', '#a855f7'][i])); fs.rotation.z = Math.PI / 2; inside.add(fs); return fs; });
+    anim.push(t => fish.forEach((fs, i) => { const k = t / (2600 + i * 400) + i; fs.position.set(4.4 + Math.sin(k) * 1.1, 1.0 + i * 0.13 + Math.sin(k * 2) * 0.05, -D / 2 + 0.5); fs.rotation.y = Math.cos(k) > 0 ? 0 : Math.PI; }));
+  } else if (theme === 'news') {
+    const feed = textTex(512, 256, (c, w, h) => { c.fillStyle = '#0d1117'; c.fillRect(0, 0, w, h); c.fillStyle = '#fff'; c.font = '800 34px Onest'; c.fillText('ЛЕНТА X', 18, 46);
+      for (let i = 0; i < 4; i++) { c.fillStyle = '#1f2937'; c.fillRect(18, 66 + i * 46, w - 36, 38); c.fillStyle = '#93c5fd'; c.fillRect(28, 76 + i * 46, 20, 20); c.fillStyle = '#e5e7eb'; c.fillRect(58, 78 + i * 46, 200 + (i * 53) % 180, 8); c.fillStyle = '#6b7280'; c.fillRect(58, 92 + i * 46, 120 + (i * 37) % 140, 6); } });
+    box(4.2, 2.0, 0.08, M.dark, 2.8, 1.35, -D / 2 + 0.25, inside);
+    const fp = new THREE.Mesh(new THREE.PlaneGeometry(4.0, 1.85), new THREE.MeshBasicMaterial({ map: feed, toneMapped: false })); fp.position.set(2.8, 1.35, -D / 2 + 0.3); inside.add(fp);
+    const air = textTex(256, 64, (c, w, h) => { c.fillStyle = '#e5484d'; c.fillRect(0, 0, w, h); c.fillStyle = '#fff'; c.font = '800 38px Onest'; c.textAlign = 'center'; c.fillText('ON AIR', w / 2, 46); });
+    const ap = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.24), new THREE.MeshBasicMaterial({ map: air, toneMapped: false })); ap.position.set(2.8, 2.15, -D / 2 + 0.3); inside.add(ap);
+    inside.add(makeGlow('#ff6b6b', 1.4, 2.8, 2.15, -D / 2 + 0.4));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.05, 8, 32), new THREE.MeshBasicMaterial({ color: '#fffbe6' })); ring.position.set(4.6, 1.5, 3.4); inside.add(ring);
+    cyl(0.03, 0.03, 1.2, M.dark, 4.6, 0.6, 3.4, inside, 6); inside.add(makeGlow('#fff6d6', 1.9, 4.6, 1.5, 3.5));
+  }
+  return anim;
+}
+const PET_TYPES = ['cat', 'dog', 'fox', 'penguin', 'bunny'];
+const PET_SPOTS = [[2.6, 3.6], [3.4, -1.0], [-1.8, 3.4], [5.0, 4.4], [-4.2, -0.4], [0.6, 4.2], [2.4, 0.2]];
+function makePet(inside, f) {
+  const type = PET_TYPES[(hashStr(f.name) >> 3) % PET_TYPES.length], g = new THREE.Group();
+  const m = mat({ cat: '#f0a35e', dog: '#c8a27a', fox: '#e8743b', penguin: '#2b2e34', bunny: '#f4f1ec' }[type]), dark = mat('#22252b'), white = mat('#ffffff');
+  if (type === 'penguin') {
+    const b = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.2, 4, 10), m); b.position.y = 0.3; b.castShadow = true; g.add(b);
+    const belly = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.14, 4, 10), white); belly.position.set(0.06, 0.28, 0); g.add(belly);
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.1, 6), mat('#f2b632')); beak.rotation.z = -Math.PI / 2; beak.position.set(0.19, 0.42, 0); g.add(beak);
+  } else {
+    box(0.5, 0.24, 0.24, m, 0, 0.3, 0, g); box(0.24, 0.22, 0.22, m, 0.32, 0.44, 0, g);
+    const ear = type === 'bunny' ? [0.05, 0.3] : [0.06, 0.13];
+    [-0.07, 0.07].forEach(z => { const e = new THREE.Mesh(type === 'dog' ? new THREE.BoxGeometry(0.06, 0.12, 0.08) : new THREE.ConeGeometry(ear[0], ear[1], 4), m);
+      e.position.set(type === 'dog' ? 0.32 : 0.34, type === 'dog' ? 0.5 : 0.6 + ear[1] / 2, type === 'dog' ? z * 1.9 : z); g.add(e); });
+    [[-0.17, -0.08], [-0.17, 0.08], [0.17, -0.08], [0.17, 0.08]].forEach(([x, z]) => box(0.06, 0.2, 0.06, m, x, 0.1, z, g));
+    const tail = box(0.05, 0.05, type === 'fox' ? 0.3 : type === 'bunny' ? 0.06 : 0.22, type === 'fox' ? white : m, -0.3, 0.4, 0, g); tail.rotation.x = 0.4; g.userData.tail = tail;
+    [-0.06, 0.06].forEach(z => box(0.03, 0.035, 0.03, dark, 0.445, 0.47, z, g, { noCast: true }));
+  }
+  g.scale.setScalar(1.2); g.position.set(2.6, 0, 3.6); inside.add(g);
+  return { g, type, goal: new THREE.Vector3(2.6, 0, 3.6) };
+}
+function petTick(L, t) {
+  const p = L.pet, g = p.g, mood = S.petMood && S.petMood[L.f.name], fresh = mood && t - mood.t0 < 6000;
+  if (fresh && mood.type === 'scared') p.goal.set(-6.6, 0, -4.6);
+  else if (g.position.distanceTo(p.goal) < 0.1 && Math.random() < 0.01) { const sp = PET_SPOTS[Math.random() * PET_SPOTS.length | 0]; p.goal.set(sp[0], 0, sp[1]); }
+  const d = p.goal.clone().sub(g.position); d.y = 0;
+  if (d.length() > 0.08) { d.normalize(); g.position.x += d.x * 0.03; g.position.z += d.z * 0.03; g.rotation.y = Math.atan2(-d.z, d.x); if (g.userData.tail) g.userData.tail.rotation.z = Math.sin(t / 120) * 0.5; }
+  g.position.y = fresh && mood.type === 'happy' ? Math.abs(Math.sin((t - mood.t0) / 180)) * 0.35 : d.length() > 0.08 ? Math.abs(Math.sin(t / 90)) * 0.04 : 0;
+}
+const PH = { trophies: new THREE.Group(), queue: new THREE.Group(), sig: '', qsig: '' };
+function buildPenthouse() {
+  const g = new THREE.Group(); g.position.set(3.8, 0.4, 2.0); roof.add(g); PH.g = g;
+  box(5.2, 0.12, 4.4, M.deck, 0, 0.06, 0, g);
+  [[5.2, 2.3, 0.05, 0, 1.25, -2.2], [5.2, 2.3, 0.05, 0, 1.25, 2.2], [0.05, 2.3, 4.4, 2.6, 1.25, 0], [0.05, 2.3, 4.4, -2.6, 1.25, 0]].forEach(a => box(a[0], a[1], a[2], M.railGlass, a[3], a[4], a[5], g, { noCast: true }));
+  [[-2.6, -2.2], [2.6, -2.2], [-2.6, 2.2], [2.6, 2.2]].forEach(([x, z]) => box(0.08, 2.4, 0.08, M.dark, x, 1.2, z, g));
+  box(5.4, 0.1, 4.6, M.slab, 0, 2.45, 0, g);
+  box(1.6, 0.06, 0.8, M.wood, 0, 0.78, -0.4, g); [[-0.7, -0.7], [0.7, -0.7], [-0.7, -0.1], [0.7, -0.1]].forEach(([x, z]) => box(0.05, 0.75, 0.05, M.dark, x, 0.4, z, g));
+  box(0.9, 0.55, 0.05, M.monitor, 0, 1.15, -0.75, g);
+  const me = new THREE.Group(); me.position.set(0, 0, 0.35); g.add(me);
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.42, 4, 12), mat('#2b2e34', { roughness: 0.5 })); body.position.y = 0.98; body.castShadow = true; me.add(body);
+  [-0.12, 0.12].forEach(dx => { const e = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff })); e.position.set(dx, 0.1, 0.33); e.scale.set(1, 1.25, 0.5); body.add(e); });
+  addHat(body, 'capsule', 'phones');
+  box(0.7, 0.08, 0.6, M.chair, 0, 0.46, 0.4, me); box(0.7, 0.6, 0.06, M.chair, 0, 0.8, 0.72, me);
+  const lbl = new THREE.Sprite(new THREE.SpriteMaterial({ depthTest: false, map: textTex(128, 64, (c, w, h) => { c.fillStyle = 'rgba(20,22,28,.85)'; c.beginPath(); c.roundRect(4, 8, w - 8, h - 16, 18); c.fill(); c.fillStyle = '#fff'; c.font = '700 30px Onest'; c.textAlign = 'center'; c.fillText('Ты', w / 2, 43); }) }));
+  lbl.scale.set(0.9, 0.45, 1); lbl.position.set(0, 1.95, 0.35); g.add(lbl);
+  box(4.6, 0.05, 0.35, M.wood, 0, 1.55, -1.95, g); box(4.6, 0.05, 0.35, M.wood, 0, 0.95, -1.95, g);
+  PH.trophies.position.set(0, 0, -1.95); g.add(PH.trophies); g.add(PH.queue); PH.me = body;
+}
+function updatePenthouse(st) {
+  if (!PH.g) return;
+  const tro = []; (st.agents || []).forEach(h => (h.badges || []).forEach(b => tro.push({ b, color: (h.look && h.look.color) || (KIND[h.kind] || KIND.claude).color })));
+  const sig = tro.map(x => x.b + x.color).join('|');
+  if (sig !== PH.sig) {                 // a trophy for every achievement; a new one grows in with a spin
+    const had = PH.sig ? PH.sig.split('|').length : 0, first = !PH.sig && PH.sig !== '|'; PH.sig = sig;
+    while (PH.trophies.children.length) PH.trophies.remove(PH.trophies.children[0]);
+    const gold = mat('#f2b632', { metalness: 0.8, roughness: 0.25 });
+    tro.slice(0, 14).forEach((x, i) => { const tg = new THREE.Group(); tg.position.set(-1.95 + (i % 7) * 0.65, i < 7 ? 1.6 : 1.0, 0);
+      cyl(0.1, 0.1, 0.06, mat(x.color), 0, 0.03, 0, tg, 10); cyl(0.03, 0.03, 0.14, gold, 0, 0.13, 0, tg, 8); cyl(0.12, 0.05, 0.16, gold, 0, 0.28, 0, tg, 12);
+      if (i >= had && !first) { tg.userData.born = performance.now(); tg.scale.setScalar(0.01); }
+      PH.trophies.add(tg); });
+  }
+  const wait = (st.agents || []).filter(h => h.status === 'waiting' && !h.chatOnly), qsig = wait.map(h => h.id).join('|');
+  if (qsig !== PH.qsig) {               // agents waiting for you queue up at your door
+    PH.qsig = qsig; while (PH.queue.children.length) PH.queue.remove(PH.queue.children[0]);
+    wait.slice(0, 5).forEach((h, i) => { const k = KIND[h.kind] || KIND.claude;
+      const b = new THREE.Mesh(bodyGeo(k.shape), new THREE.MeshStandardMaterial({ color: (h.look && h.look.color) || k.color, roughness: 0.5, flatShading: true }));
+      b.scale.setScalar(0.6); b.position.set(-2.2 + i * 0.75, 0.55, 2.8); b.rotation.y = Math.PI; b.castShadow = true; b.userData.phase = i; PH.queue.add(b); });
+  }
+}
+const CLOUDS = [], BIRDS = [];
+for (let i = 0; i < 7; i++) { const c = new THREE.Group(), cm = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, transparent: true, opacity: 0.92, flatShading: true });
+  for (let k = 0; k < 4; k++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(1.2 + Math.random() * 1.6, 1), cm); m.position.set(k * 1.6 - 2.4, Math.random() * 0.8, (Math.random() - 0.5) * 1.6); m.castShadow = true; c.add(m); }
+  c.position.set(-60 + i * 18, 27 + Math.random() * 4, -24 + Math.random() * 40); scene.add(c); CLOUDS.push(c); }
+for (let i = 0; i < 4; i++) { const b = new THREE.Group(), bm = mat('#2b2e34'); [-1, 1].forEach(sd => { const w = box(0.5, 0.03, 0.16, bm, sd * 0.25, 0, 0, b, { noCast: true }); w.userData.side = sd; }); scene.add(b); BIRDS.push(b); }
+function cloudCount() { const c = S.live && S.hub && S.hub.weather ? S.hub.weather.code : 1; return c == null ? 4 : c === 0 ? 2 : c <= 2 ? 4 : 7; }
+function ambientTick(t) {
+  const n = cloudCount();
+  CLOUDS.forEach((c, i) => { c.visible = i < n; if (!reduce) { c.position.x += 0.008 + i * 0.002; if (c.position.x > 60) c.position.x = -60; } });
+  if (!reduce) {
+    BIRDS.forEach((b, i) => { const a = t / 6000 + i * 1.3, r = 16 + i * 2; b.position.set(BX + Math.cos(a) * r, 20 + Math.sin(t / 900 + i) + i * 0.6, BZ + Math.sin(a) * r); b.rotation.y = -a;
+      b.children.forEach(w => { w.rotation.z = w.userData.side * Math.sin(t / 110 + i) * 0.7; }); });
+    PH.queue.children.forEach(b => { b.position.y = 0.55 + Math.abs(Math.sin(t / 260 + b.userData.phase)) * 0.12; });
+    PH.trophies.children.forEach(tg => { if (tg.userData.born) { const k = Math.min(1, (t - tg.userData.born) / 1200); tg.scale.setScalar(Math.max(0.01, k)); tg.rotation.y = (1 - k) * 6; if (k >= 1) tg.userData.born = 0; } });
+  }
+  const op = S.dark ? 0.9 : 0.22; GLOWS.forEach(sp => { sp.material.opacity = op; });
+  if (t - (S.glowGc || 0) > 10000) { S.glowGc = t; GLOWS = GLOWS.filter(sp => sp.parent); }
+  allLevels().forEach(L => { if (L.inside.visible && L.anim) L.anim.forEach(fn => fn(t)); });
+}
+// ---- the team talks: speech bubbles, visits, paper planes, coffee breaks
+const SAYS = [];
+function sayFor(id, text, ms) {
+  const el = document.createElement('div'); el.className = 'say'; el.textContent = text.length > 70 ? text.slice(0, 68) + '…' : text;
+  $('says').appendChild(el); SAYS.push({ id, el, until: performance.now() + (ms || 4000) });
+}
+function saysTick() {
+  const now = performance.now();
+  for (let i = SAYS.length - 1; i >= 0; i--) { const sy = SAYS[i], r = AG.get(sy.id);
+    const onOpen = r && S.open && FLOORS[r.a.fi] && FLOORS[r.a.fi].L === FLOORS[S.floor].L;
+    if (!r || now > sy.until) { sy.el.remove(); SAYS.splice(i, 1); continue; }
+    sy.el.style.display = onOpen ? '' : 'none';
+    if (onOpen) { v3.set(0, 2.2, 0); r.g.localToWorld(v3); v3.project(camera); sy.el.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px'; sy.el.style.top = ((1 - v3.y) / 2 * innerHeight - 8) + 'px'; } }
+}
+function emoteFor(h, was) {
+  const r = AG.get(h.id); if (!r) return; const now = performance.now();
+  if (h.status === 'done' && was === 'working') {
+    r.emote = { type: 'joy', t0: now, dur: 1000 };
+    const a = r.a, lead = a && FLOORS[a.fi] && FLOORS[a.fi].agents.find(x => /^Диспетчер/.test(x.name) && x.id !== a.id);
+    if (lead && AG.get(lead.id) && /·/.test(a.name)) visitFor(a.name, lead.name, 'Дай пять!');      // worker done → high five with the lead
+  } else if (h.status === 'error') { r.emote = { type: 'shake', t0: now, dur: 1500 }; sayFor(h.id, '?', 2500); }
+}
+function visitFor(fromName, toName, text) {
+  const all = ALL(), a = all.find(x => x.name === fromName), b = all.find(x => x.name === toName || (toName && x.name.toLowerCase().includes(String(toName).toLowerCase())));
+  const ra = a && AG.get(a.id), rb = b && AG.get(b.id);
+  if (ra) sayFor(a.id, text, 4500);
+  if (!ra || !rb || ra === rb) return;
+  if (ra.floorL === rb.floorL) {                 // walk over to the colleague's desk, then back
+    const tp = rb.goal || rb.g.position; ra.goal = { x: tp.x + 0.95, z: tp.z + 0.2, ry: -Math.PI / 2 }; ra.visitUntil = performance.now() + 7000;
+    setTimeout(() => { if (AG.get(b.id)) rb.emote = { type: 'joy', t0: performance.now(), dur: 900 }; }, 2500);
+  }
+  launchPlane(ra, rb);
+}
+const PLANES = [];
+const planeGeo = new THREE.ConeGeometry(0.12, 0.34, 3), planeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6, flatShading: true });
+function launchPlane(ra, rb) {
+  const from = new THREE.Vector3(0, 1.4, 0), to = new THREE.Vector3(0, 1.4, 0); ra.g.localToWorld(from); rb.g.localToWorld(to);
+  const m = new THREE.Mesh(planeGeo, planeMat); m.scale.z = 0.25; m.castShadow = true; scene.add(m);
+  PLANES.push({ m, from, to, t0: performance.now() });
+}
+function planesTick(t) {
+  for (let i = PLANES.length - 1; i >= 0; i--) { const pl = PLANES[i], k = (t - pl.t0) / 1600;
+    if (k >= 1) { scene.remove(pl.m); PLANES.splice(i, 1); continue; }
+    pl.m.position.lerpVectors(pl.from, pl.to, k); pl.m.position.y += Math.sin(k * Math.PI) * 1.4;
+    pl.m.lookAt(pl.to); pl.m.rotateX(Math.PI / 2); }
+}
+const SMALL_TALK = [['Кофе?', 'Давай, пять минут'], ['Как деплой?', 'Зелёный, тьфу-тьфу'], ['Опять тесты падают', 'Флейки, перезапусти'], ['Лимит почти всё', 'Тогда без рефакторинга'],
+  ['Видел новый коммит?', 'Ага, красиво'], ['Обед?', 'После этой задачи'], ['Кто трогал main?', 'Не я!'], ['Ревью глянешь?', 'Скидывай']];
+function coffeeBreak() {
+  const floors = FLOORS.filter(f => !f.annex && f.L);
+  for (const f of floors) {
+    const idle = f.agents.filter(a => (a.status === 'resting' || a.status === 'done') && AG.get(a.id) && !AG.get(a.id).visitUntil);
+    if (idle.length < 2) continue;
+    const [a, b] = idle.sort(() => Math.random() - 0.5), ra = AG.get(a.id), rb = AG.get(b.id), now = performance.now(), talk = SMALL_TALK[Math.random() * SMALL_TALK.length | 0];
+    ra.goal = { x: 5.0, z: -0.1, ry: Math.PI }; rb.goal = { x: 5.0, z: 1.1, ry: 0 }; ra.visitUntil = rb.visitUntil = now + 11000;
+    setTimeout(() => sayFor(a.id, talk[0], 3500), 2600); setTimeout(() => sayFor(b.id, talk[1], 3500), 5200);
+    if (ambient) { const h = noiseSource('bandpass', 2500, 0.03); setTimeout(() => h.src.stop(), 1800); }
+    return;
+  }
+}
+function socialTick(t) {
+  if (t - (S.coffeeAt || 0) > 28000) { S.coffeeAt = t; if (!reduce) coffeeBreak(); }
+  if (t - (S.yawnAt || 0) > 9000) { S.yawnAt = t; const sleepy = [...AG.values()].filter(r => r.a.status === 'resting' && !r.emote); const r = sleepy[Math.random() * sleepy.length | 0]; if (r) r.emote = { type: 'yawn', t0: t, dur: 1600 }; }
+}
+// ---- richer weather: puddles in the rain, fog, a rainbow after rain
+const PUDDLES = [[-8, 8], [-2, 12], [4, 9], [-12, 4], [8, 13], [1, 5.5], [-6, 15]].map(([x, z], i) => {
+  const m = new THREE.Mesh(new THREE.CircleGeometry(0.9 + (i % 3) * 0.4, 24), new THREE.MeshStandardMaterial({ color: '#8fa3b5', roughness: 0.05, metalness: 0.4, transparent: true, opacity: 0.55 }));
+  m.rotation.x = -Math.PI / 2; m.position.set(x, 0.135, z); m.scale.setScalar(0.01); m.visible = false; scene.add(m); return m; });
+const rainbow = new THREE.Group(); scene.add(rainbow); rainbow.visible = false;
+['#ff4d4d', '#ff9f43', '#feca57', '#2ecc71', '#48dbfb', '#5f6dff', '#a55eea'].forEach((c, i) => { const r = new THREE.Mesh(new THREE.TorusGeometry(46 - i * 1.1, 0.55, 6, 80, Math.PI), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.32, depthWrite: false }));
+  rainbow.add(r); });
+rainbow.position.set(0, -6, -55);
+function weatherExtras(t) {
+  const k = weatherKind(), w = S.live && S.hub && S.hub.weather;
+  PUDDLES.forEach(pd => { const goal = k === 'rain' ? 1 : 0.01; pd.scale.setScalar(pd.scale.x + (goal - pd.scale.x) * 0.004); pd.visible = pd.scale.x > 0.03; });
+  const foggy = !!w && (w.code === 45 || w.code === 48);
+  if (foggy && !scene.fog) scene.fog = new THREE.Fog(S.dark ? '#151a20' : '#dfe5db', 25, 105); else if (!foggy && scene.fog) scene.fog = null;
+  if (S.lastWx === 'rain' && k !== 'rain' && w && w.day) S.rainbowUntil = Date.now() + 10 * 60000;
+  S.lastWx = k;
+  rainbow.visible = !!S.rainbowUntil && Date.now() < S.rainbowUntil && !S.dark;
+}
+// ---- cinema tour: the camera flies over the office on its own, captions at the bottom
+function tourSteps() {
+  const steps = [{ kind: 'home', title: 'ИИ-Офис', sub: (S.hub ? ALL().length + ' агентов · ' + FLOORS.length + ' этажей' : 'офис ИИ-агентов'), dur: 7000 }];
+  FLOORS.forEach((f, i) => { const w = f.agents.filter(a => a.status === 'working').length;
+    steps.push({ kind: 'floor', i, title: f.annex ? 'Пристройка Grok' : 'Этаж ' + f.n + ' · ' + f.name, sub: f.agents.length ? w + ' из ' + f.agents.length + ' работают' : 'пока пусто', dur: 5000 }); });
+  steps.push({ kind: 'roof', title: 'Пентхаус', sub: 'твой кабинет и полка трофеев', dur: 5000 }, { kind: 'home', title: 'ИИ-Офис', sub: 'все ИИ в одной команде', dur: 5000 });
+  return steps;
+}
+function startTour() { closeFloor(); S.tour = { steps: tourSteps(), i: -1, t0: 0 }; document.body.classList.add('touring'); controls.autoRotate = !reduce; controls.autoRotateSpeed = 0.6; $('caption').hidden = false; }
+function stopTour() { S.tour = null; document.body.classList.remove('touring'); controls.autoRotate = false; $('caption').hidden = true; closeFloor(); }
+function tourTick(t) {
+  const tr = S.tour; if (!tr) return;
+  if (tr.i >= 0 && t - tr.t0 < tr.steps[tr.i].dur) return;
+  tr.i++; tr.t0 = t;
+  if (tr.i >= tr.steps.length) return stopTour();
+  const st = tr.steps[tr.i];
+  $('caption').querySelector('b').textContent = st.title; $('caption').querySelector('span').textContent = st.sub;
+  if (st.kind === 'home') closeFloor();
+  else if (st.kind === 'floor') openFloor(st.i);
+  else { closeFloor(); camGoal.target.set(BX + 3.8, roof.position.y + 1.2, BZ + 2); camGoal.zoom = innerWidth < 760 ? 2.2 : 2.8; camGoal.until = performance.now() + 2500; }
+}
+// ---- soundscape: office hum, keyboards (more agents working → more typing), rain
+let noiseBuf = null, ambient = null;
+function noiseBuffer() { if (noiseBuf) return noiseBuf; const n = audioCtx.sampleRate * 2; noiseBuf = audioCtx.createBuffer(1, n, audioCtx.sampleRate); const d = noiseBuf.getChannelData(0); let last = 0;
+  for (let i = 0; i < n; i++) { const wv = Math.random() * 2 - 1; last = (last + 0.02 * wv) / 1.02; d[i] = last * 3.5; } return noiseBuf; }   // brown noise
+function noiseSource(type, freq, gain) { const src = audioCtx.createBufferSource(), f = audioCtx.createBiquadFilter(), g = audioCtx.createGain(); src.buffer = noiseBuffer(); src.loop = true;
+  f.type = type; f.frequency.value = freq; g.gain.value = gain; src.connect(f).connect(g).connect(audioCtx.destination); src.start(); return { src, g }; }
+function click(vol) { const src = audioCtx.createBufferSource(), f = audioCtx.createBiquadFilter(), g = audioCtx.createGain(); src.buffer = noiseBuffer(); f.type = 'highpass'; f.frequency.value = 1800 + Math.random() * 1500;
+  g.gain.setValueAtTime(vol, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.04); src.connect(f).connect(g).connect(audioCtx.destination); src.start(audioCtx.currentTime, Math.random()); src.stop(audioCtx.currentTime + 0.05); }
+function soundscape() {
+  if (!S.sound) { if (ambient) { ambient.hum.src.stop(); ambient.rain.src.stop(); clearInterval(ambient.timer); ambient = null; } return; }
+  try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+  if (ambient) return;
+  ambient = { hum: noiseSource('lowpass', 380, 0.018), rain: noiseSource('highpass', 900, 0) };
+  ambient.timer = setInterval(() => {
+    const working = ALL().filter(a => a.status === 'working').length;
+    ambient.rain.g.gain.value = weatherKind() === 'rain' ? 0.035 : 0;
+    if (working && Math.random() < Math.min(0.9, 0.18 * working)) { click(0.025); if (Math.random() < 0.5) setTimeout(() => click(0.02), 70 + Math.random() * 90); }
+  }, 140);
+}
+// ---- skins: the same office in a different material
+const SKINS = {
+  glass: { name: 'Стекло' },
+  cyber: { name: 'Киберпанк', bg: '#120a24', mats: { grass: '#1d1636', soil: '#241a40', paving: '#2a2140', paving2: '#221a36', slab: '#2d2346', inner: '#1f1833', fin: '#ff3fd2', water: '#2be4ff', leaf: '#7b2dff', deck: '#3a2a5c', wood: '#4a3470' },
+    emissive: { fin: ['#ff3fd2', 0.9], water: ['#2be4ff', 0.6], glass: ['#2be4ff', 0.45], leaf: ['#7b2dff', 0.5] }, hemi: ['#b48cff', '#1a0f30', 0.5], sun: ['#ff9ae8', 0.7] },
+  pixel: { name: 'Пиксель', ratio: 0.22 },
+  nii: { name: 'НИИ', bg: '#d8cfb8', mats: { grass: '#9fa77a', soil: '#b9ad8d', paving: '#c9c0aa', paving2: '#b5ab93', slab: '#cdc6b6', glass: '#3f5a4c', fin: '#9c4a34', inner: '#e8dcc2', wood: '#8a6440', deck: '#8a6440', leaf: '#6f8a4f', water: '#7a9a92', desk: '#c8b48e', chair: '#5a3b2a', sofa: '#7d2e24' },
+    hemi: ['#fff1d6', '#8f8263', 0.6], sun: ['#ffe2b0', 1.1] },
+};
+const BASE_MATS = {};
+new Set(Object.values(SKINS).flatMap(sk => Object.keys(sk.mats || {}).concat(Object.keys(sk.emissive || {})))).forEach(k => { const m = M[k]; BASE_MATS[k] = { color: m.color.clone(), emissive: m.emissive ? m.emissive.clone() : null, ei: m.emissiveIntensity }; });   // only what a skin touches: lamps etc. stay with applyDark
+S.skin = SKINS[store.get('office-skin')] ? store.get('office-skin') : 'glass';
+function applySkin() {   // runs after applyDark(), so the skin overrides day/night colours where it has its own
+  const sk = SKINS[S.skin]; document.body.dataset.skin = S.skin; $('skinLbl').textContent = sk.name;
+  Object.entries(BASE_MATS).forEach(([k, b]) => { const m = M[k]; m.color.copy(b.color); if (m.emissive && k !== 'glass') { m.emissive.copy(b.emissive); m.emissiveIntensity = b.ei; } });
+  Object.entries(sk.mats || {}).forEach(([k, c]) => M[k] && M[k].color.set(c));
+  Object.entries(sk.emissive || {}).forEach(([k, [c, i]]) => { if (M[k] && M[k].emissive) { M[k].emissive.set(c); M[k].emissiveIntensity = i; } });
+  if (sk.bg) scene.background = new THREE.Color(sk.bg);
+  if (sk.hemi) { hemi.color.set(sk.hemi[0]); hemi.groundColor.set(sk.hemi[1]); hemi.intensity = sk.hemi[2]; }
+  if (sk.sun) { sun.color.set(sk.sun[0]); sun.intensity = sk.sun[1]; }
+  renderer.setPixelRatio(sk.ratio || Math.min(devicePixelRatio, 2)); resize();
+}
+function setSkin(k) { S.skin = k; store.set('office-skin', k); applyDark(); }
+// ---- ⌘K: one search box for floors, agents and every action
+function palCommands() {
+  const cmds = [];
+  FLOORS.forEach((f, i) => cmds.push({ k: 'Этаж', t: f.annex ? 'Пристройка Grok' : f.n + ' · ' + f.name, sub: f.agents.length + ' агентов', run: () => openFloor(i) }));
+  ALL().forEach(a => { cmds.push({ k: 'Агент', t: a.name, sub: ST[a.status] || '', run: () => select(a.id) });
+    cmds.push({ k: 'Чат', t: 'Написать: ' + a.name, run: () => openChat(a.id) });
+    if (a.status === 'waiting') cmds.push({ k: 'Ждёт', t: 'Одобрить: ' + a.name, sub: a.task, run: () => approve(a.id) }, { k: 'Ждёт', t: 'Отклонить: ' + a.name, run: () => deny(a.id) }); });
+  Object.entries(SKINS).forEach(([k, sk]) => cmds.push({ k: 'Скин', t: sk.name, sub: S.skin === k ? 'сейчас' : '', run: () => setSkin(k) }));
+  cmds.push({ k: 'Вид', t: S.dark ? 'Светлая тема' : 'Тёмная тема', run: () => $('darkBtn').click() }, { k: 'Вид', t: 'Миниатюра вкл/выкл', run: () => $('miniBtn').click() },
+    { k: 'Вид', t: 'Кино-тур', run: () => startTour() }, { k: 'Вид', t: S.sound ? 'Выключить звук' : 'Включить звук', run: () => $('soundBtn').click() },
+    { k: 'Офис', t: 'Подключить ИИ', run: () => renderConnect() });
+  if (S.live) cmds.push({ k: 'Офис', t: 'Нанять агента', run: () => openHire('') }, { k: 'Офис', t: 'Чаты', run: () => $('chatsBtn').click() }, { k: 'Офис', t: 'История расхода', run: () => openUsage() });
+  return cmds;
+}
+function openPal() { S.pal = { q: '', i: 0, cmds: palCommands() };
+  $('palWrap').innerHTML = '<div id="pal" data-palclose="1"><div class="card" role="dialog" aria-modal="true" aria-label="Команды"><input id="palIn" placeholder="Этаж, агент или команда…" autocomplete="off" role="combobox" aria-controls="palList" aria-expanded="true"><ul id="palList" role="listbox"></ul></div></div>';
+  $('palIn').focus(); renderPal(); }
+function closePal() { S.pal = null; $('palWrap').innerHTML = ''; }
+function palHits() { const q = S.pal.q.trim().toLowerCase(); return S.pal.cmds.filter(c => !q || (c.k + ' ' + c.t + ' ' + (c.sub || '')).toLowerCase().includes(q)).slice(0, 40); }
+function renderPal() { const hits = palHits(); S.pal.i = Math.max(0, Math.min(S.pal.i, hits.length - 1));
+  $('palList').innerHTML = hits.length ? hits.map((c, i) => `<li role="option" data-pal="${i}" aria-selected="${i === S.pal.i}"><span class="k">${esc(c.k)}</span><span>${esc(c.t)}</span>${c.sub ? `<small>${esc(c.sub)}</small>` : ''}</li>`).join('') : '<li class="muted">Ничего не нашлось</li>';
+  const sel = $('palList').querySelector('[aria-selected="true"]'); if (sel) sel.scrollIntoView({ block: 'nearest' }); }
+function runPal(i) { const c = palHits()[i]; closePal(); if (c) c.run(); }
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); return S.pal ? closePal() : openPal(); }
+  if (!S.pal) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closePal(); }
+  else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopImmediatePropagation(); S.pal.i += e.key === 'ArrowDown' ? 1 : -1; renderPal(); }
+  else if (e.key === 'Enter') { e.preventDefault(); runPal(S.pal.i); }
+}, true);
+document.addEventListener('input', (e) => { if (e.target.id === 'palIn') { S.pal.q = e.target.value; S.pal.i = 0; renderPal(); } });
+$('palWrap').addEventListener('click', (e) => { const li = e.target.closest('[data-pal]'); if (li) return runPal(+li.dataset.pal); if (e.target.dataset.palclose) closePal(); });
 function renderConnectLive() {
   const it = S.hub.integrations || {}, w = S.hub.settings.approveWait;
   const nt = S.hub.ntfy || {};
@@ -1537,6 +1971,6 @@ async function boot() {
     S.live = true; document.body.classList.add('live'); FLOORS = []; applyHub(st); connectStream();
   } catch (e) { S.live = false; rebuild(); }
 }
-resize(); boot().then(() => { applyDark(); requestAnimationFrame(frame); });
+resize(); boot().then(() => { applyDark(); requestAnimationFrame(frame); if (S.sound) addEventListener('pointerdown', soundscape, { once: true }); });
 })();
 </script>
