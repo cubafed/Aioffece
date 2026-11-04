@@ -354,7 +354,8 @@ const KIND = {
   claude: { color:'#e9835a', shape:'drop', label:'Claude Code' },
   codex:  { color:'#2bb59a', shape:'cube',    label:'Codex CLI' },
   grok:   { color:'#2b2d33', shape:'sphere',  label:'Grok' },
-  gemini: { color:'#6b8ff5', shape:'capsule', label:'Gemini' }
+  gemini: { color:'#6b8ff5', shape:'capsule', label:'Gemini' },
+  cursor: { color:'#7b61ff', shape:'cube',    label:'Cursor' }
 };
 let FLOORS = [
   { n:6, name:'HQ', color:'#e5484d', agents:[
@@ -1024,6 +1025,7 @@ function renderChatLive(soft) {
   const quick = (a.status === 'waiting' && a.approval ? `<button class="btn" data-approve="${a.id}">Разрешить</button><button class="btn ghost" data-deny="${a.id}">Запретить</button>` : '')
     + (a.running ? `<button class="btn ghost" data-stop="${a.id}">Остановить</button>` : '');
   const foot = a.managed ? `<form id="chatForm"><label class="sr" for="chatIn">Сообщение</label><input id="chatIn" autocomplete="off" placeholder="${a.running ? 'Добавить в очередь…' : 'Написать ' + esc(a.name) + '…'}"><button class="btn" type="submit" aria-label="Отправить">→</button></form>`
+    : a.kind === 'grok' ? `<form id="chatForm" data-grokform="1"><label class="sr" for="chatIn">Сообщение</label><input id="chatIn" autocomplete="off" placeholder="Написать ${esc(a.name)}…"><button class="btn" type="submit" aria-label="Отправить">→</button></form><div class="ro">Уйдёт во входящие Grok-ботов. Бот ответит, когда проверит канал.</div>`
     : a.forkable ? `<form id="chatForm" data-forkform="1"><label class="sr" for="chatIn">Сообщение</label><input id="chatIn" autocomplete="off" placeholder="Продолжить разговор в офисе…"><button class="btn" type="submit">Продолжить</button></form><div class="ro">Ответ уйдёт в копию этой сессии: офис продолжит разговор отдельно, терминал не тронет.</div>`
     : `<div class="ro">Сессия идёт ${a.role ? 'на ' + esc(a.role.split(' · ')[0]) : 'в терминале'}. Здесь видна её история, писать можно только туда.</div>`;
   const keep = soft && document.activeElement && document.activeElement.id === 'chatIn' ? $('chatIn').value : null;
@@ -1035,6 +1037,7 @@ function renderChatLive(soft) {
   if (keep !== null) { $('chatIn').value = keep; $('chatIn').focus(); }
   const f = $('chatForm'); if (f) f.onsubmit = (e) => { e.preventDefault(); const v = $('chatIn').value.trim(); if (!v) return; $('chatIn').value = '';
     if (f.dataset.forkform) api('/api/fork', { id: a.id, text: v }).then(j => openChat(j.id)).catch(toastErr);
+    else if (f.dataset.grokform) api('/api/grok/send', { id: a.id, text: v }).then(() => { S.drone = { id: a.id, t0: performance.now() }; loadChat(a.id); }).catch(toastErr);
     else api('/api/send', { id: a.id, text: v }).then(() => { S.drone = { id: a.id, t0: performance.now() }; loadChat(a.id); }).catch(toastErr); };
 }
 const KIND_RU = { claude: 'Клод · Claude Code', codex: 'Кодекс · Codex', antigravity: 'Джемини · Antigravity' };
@@ -1256,7 +1259,10 @@ function grokPrompt(url) {
 Формат строки: Имя бота | Этаж | статус | что делаешь (до 100 символов)
 Этаж — команда или проект бота. Статус — одно из: working, waiting, done, resting, error.
 Пример: curl -d "Trend Scout | Research | working | Сканирую X на тренды ИИ" ${url}
-Канал приватный: кроме строк статуса туда ничего не пиши. Сразу после настройки каждый бот шлёт строку со статусом resting.`;
+Канал приватный: кроме строк статуса туда ничего не пиши. Сразу после настройки каждый бот шлёт строку со статусом resting.
+
+Входящие: в начале каждого запуска и раз в 10 минут проверяй новые сообщения GET ${url}-in/json?poll=1&since=15m
+Сообщение выглядит так: Кому: Имя бота | от: кто | текст. Выполняй то, что адресовано тебе, и отчитывайся строкой статуса.`;
 }
 function grokSetup(nt) {
   if (!nt.on) return `<div class="int"><div class="tx"><b>Подключить Grok Bot</b><small>Хаб начнёт слушать приватный канал на ntfy.sh. В канал попадают только строки статуса, которые пишут сами боты.</small></div><button class="btn" data-ntfy="on">Подключить</button></div>`;

@@ -36,7 +36,7 @@ HOST = os.environ.get('OFFICE_HOST', '127.0.0.1')
 PORT = int(os.environ.get('OFFICE_PORT', '4747'))
 ALLOWED_HOSTS = {'127.0.0.1', 'localhost'}
 
-NAMES = {'claude': 'Клод', 'codex': 'Кодекс', 'grok': 'Грок', 'gemini': 'Джемини', 'antigravity': 'Джемини'}
+NAMES = {'claude': 'Клод', 'codex': 'Кодекс', 'grok': 'Грок', 'gemini': 'Джемини', 'antigravity': 'Джемини', 'cursor': 'Курсор'}
 LOOK = {'antigravity': 'gemini'}   # which character the office draws for a source
 LOCAL_HOST = os.uname().nodename.split('.')[0]
 KINDS = ('claude', 'codex', 'antigravity')   # agents the office can run itself
@@ -246,6 +246,9 @@ def handle_hook(src, p):
         elif ev == 'Stop':
             set_status(a, 'done', 'Готово: ' + (a['prompt'] or 'ответил'))
             add_log(a['name'], 'закончил', 'done')
+            if p.get('reply') and not a.get('managed'):
+                chat_add(a, 'bot', p['reply'])
+        elif ev == 'AgentReply':
             if p.get('reply') and not a.get('managed'):
                 chat_add(a, 'bot', p['reply'])
         elif ev == 'StopFailure':
@@ -491,10 +494,10 @@ LEAD_PROMPT = '''Ты — Диспетчер этажа «{proj}» в ИИ-Оф�
 
 У тебя есть инструменты office_* (MCP-сервер office). Порядок работы:
 1. Изучи репозиторий и разбей цель на 2–6 конкретных задач (office_add_task).
-2. Найми исполнителей через office_hire: kind="claude" для реализации, kind="codex" для тестов и ревью. Не больше трёх исполнителей. Каждый работает в своей git-ветке и сам напишет тебе, когда закончит.
+2. Найми исполнителей через office_hire. Доступные сейчас: {team}. Не больше трёх. Каждый работает в своей git-ветке и сам напишет тебе, когда закончит.
 3. Следи за доской (office_board) и сообщениями (office_inbox), отвечай через office_send.
-4. Задачи в статусе review проверяй (git log, git diff по ветке исполнителя). Хорошие сливай в основную ветку (git merge), остальные возвращай с замечаниями.
-5. Когда цель достигнута, отчитайся через office_report. Ничего не пушь в удалённый репозиторий без просьбы человека.
+4. Работу исполнителей проверяй (git log, git diff по их веткам). Готовую задачу переводи в review — сливает ветки человек в офисе. Сам не сливай.
+5. Когда всё готово к слиянию, отчитайся через office_report. Ничего не пушь в удалённый репозиторий.
 Отвечай по-русски, коротко.'''
 
 WORKER_PROMPT = '''Ты — {name}, исполнитель на этаже «{proj}» в ИИ-Офисе. Работаешь в своей копии репозитория{branch}. Руководитель — {lead}.
@@ -605,12 +608,24 @@ def mcp_call(body):
             m['read'].append(me)
         return '\n'.join('%s %s: %s' % (m['t'], m['from'], m['text']) for m in mine) or 'Новых сообщений нет', False
     if tool == 'office_hire':
-        kind = str(args.get('kind') or 'claude').lower()
+        kind = {'gemini': 'antigravity', 'gpt': 'codex'}.get(str(args.get('kind') or 'claude').lower(), str(args.get('kind') or 'claude').lower())
+        if kind == 'grok':
+            bots = [x for x in agents.values() if x['src'] == 'grok']
+            want = str(args.get('name') or '').lower()
+            bot = next((x for x in bots if want and want in x['name'].lower()), None) or (sorted(bots, key=lambda x: x['status'] == 'working')[0] if bots else None)
+            if not bot:
+                return 'Grok-ботов в офисе нет', True
+            bot['mission'] = {'role': 'worker', 'lead': b['lead'] if b['lead'] in agents else a['id']}
+            try:
+                grok_send(bot, str(args.get('task') or ''), me)
+            except Exception as e:
+                return 'Не смог отправить Grok-боту: %s' % e, True
+            return 'Задача отправлена Grok-боту %s. Он отвечает не сразу: проверяет входящие по расписанию.' % bot['name'], False
         host, path = place_of(proj)
         if not path:
             return 'Не знаю, где лежит проект %s' % proj, True
-        if kind not in ('claude', 'codex') or kind not in host_kinds(host):
-            others = [k for k in host_kinds(host) if k in ('claude', 'codex')]
+        if kind not in KINDS or kind not in host_kinds(host):
+            others = host_kinds(host)
             return '%s здесь недоступен%s.%s' % (kind, (': ' + BROKEN[host + ':' + kind]) if host + ':' + kind in BROKEN else '',
                                                 (' Найми kind="%s".' % others[0]) if others else ''), True
         busy = sum(1 for x in agents.values() if x['project'] == proj and x.get('mission') and x['mission'].get('role') == 'worker')
@@ -632,6 +647,19 @@ def mcp_call(body):
     return 'Неизвестный инструмент %s' % tool, True
 
 
+TEAM_RU = {'claude': 'kind="claude" — Клод, сильнее всех в реализации и рефакторинге',
+           'codex': 'kind="codex" — GPT (Кодекс), хорош в тестах, ревью и аккуратных правках',
+           'antigravity': 'kind="gemini" — Джемини, документация, исследование, большие объёмы текста'}
+
+
+def team_text(host):
+    team = [TEAM_RU[k] for k in host_kinds(host) if k in TEAM_RU]
+    bots = [x['name'] for x in agents.values() if x['src'] == 'grok']
+    if bots and settings.get('ntfyOn'):
+        team.append('kind="grok" — Grok-боты (%s): тренды и посты в X, поиск в вебе; отвечают не сразу' % ', '.join(bots))
+    return '; '.join(team) or 'только ты сам'
+
+
 def start_mission(proj, goal, kind='claude'):
     host, path = place_of(proj)
     if not path:
@@ -645,7 +673,7 @@ def start_mission(proj, goal, kind='claude'):
     if kind not in ('claude', 'codex') or kind not in host_kinds(host):
         raise RuntimeError('%s недоступен там, где лежит проект (%s)' % (kind, host))
     lead = hire(kind, path, '', name='Диспетчер·' + proj, project=proj, mission={'role': 'lead'}, host=host,
-                system=LEAD_PROMPT.format(proj=proj, goal=goal))
+                system=LEAD_PROMPT.format(proj=proj, goal=goal, team=team_text(host)))
     b['lead'] = lead['id']
     send_to(lead, 'Цель: %s\nНачни: разбей на задачи и найми исполнителей.' % goal)
     add_log('Ты', 'поставил цель этажу %s' % proj, 'working')
@@ -730,8 +758,28 @@ def handle_status_line(text):
             add_log(a['name'], {'working': 'работает: ', 'waiting': 'ждёт тебя: ', 'done': 'готово: ', 'error': 'застрял: '}.get(status, 'отдыхает: ') + task, status)
             if status == 'working':
                 a['tasks'] += 1
+        if task and task != a.get('lastLine'):
+            chat_add(a, 'bot', '%s · %s' % (ST_RU.get(status, status), task))
+            a['lastLine'] = task
+        was = a['status']
         set_status(a, status, task or a['task'])
+        lead = agents.get((a.get('mission') or {}).get('lead') or '')
+        if lead and status in ('done', 'error') and was != status:
+            deliver(lead, '%s (Grok Bot) %s: %s' % (a['name'], ST_RU[status], task), 'Офис')
         mark_dirty()
+
+
+def grok_send(bot, text, sender='Ты'):
+    """Message for a Grok bot: published to the inbox channel (topic + '-in') the bots check."""
+    with lock:
+        topic, server = settings['ntfyTopic'], settings['ntfyServer'].rstrip('/')
+        chat_add(bot, 'me' if sender == 'Ты' else 'peer', text if sender == 'Ты' else '%s: %s' % (sender, text))
+        mark_dirty()
+    if not topic:
+        raise RuntimeError('канал Grok не включён')
+    body = ('Кому: %s | от: %s | %s' % (bot['name'], sender, text)).encode('utf-8')
+    req = urllib.request.Request('%s/%s-in' % (server, topic), data=body, headers={'User-Agent': 'ai-office-hub', 'Title': 'ИИ-Офис'})
+    urllib.request.urlopen(req, timeout=15).close()
 
 
 def ntfy_loop():
@@ -820,7 +868,7 @@ _integr = {'at': 0, 'val': {}}
 def integrations():
     if time.time() - _integr['at'] > 30:
         val = {}
-        for k, path in (('claude', '~/.claude/settings.json'), ('codex', '~/.codex/hooks.json'), ('gemini', '~/.gemini/config/hooks.json')):
+        for k, path in (('claude', '~/.claude/settings.json'), ('codex', '~/.codex/hooks.json'), ('gemini', '~/.gemini/config/hooks.json'), ('cursor', '~/.cursor/hooks.json')):
             try:
                 with open(os.path.expanduser(path), encoding='utf-8') as f:
                     val[k] = 'office_hook.py' in f.read()
@@ -1138,6 +1186,16 @@ class Handler(BaseHTTPRequestHandler):
                     mark_dirty()
             except (RuntimeError, OSError) as e:
                 return self._json(400, {'error': str(e)})
+            return self._json(200, {'ok': True})
+        if url.path == '/api/grok/send':
+            with lock:
+                bot = agents.get(str(body.get('id') or ''))
+            if not bot or bot['src'] != 'grok' or not str(body.get('text') or '').strip():
+                return self._json(400, {'error': 'нужны Grok-бот и текст'})
+            try:
+                grok_send(bot, str(body['text']).strip()[:2000])
+            except Exception as e:
+                return self._json(502, {'error': 'не отправилось: %s' % e})
             return self._json(200, {'ok': True})
         if url.path in ('/api/hire', '/api/send', '/api/stop', '/api/fork', '/api/chatnew'):
             return self._office_run(url.path, body)

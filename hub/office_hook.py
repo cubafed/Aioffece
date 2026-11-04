@@ -74,6 +74,29 @@ def from_antigravity(p, event):
             'invocation': p.get('invocationNum'), 'stop_reason': p.get('terminationReason') or ''}
 
 
+CURSOR_EVENTS = {'beforeSubmitPrompt': 'UserPromptSubmit', 'afterShellExecution': 'PreToolUse', 'afterFileEdit': 'PreToolUse',
+                 'afterMCPExecution': 'PreToolUse', 'afterAgentResponse': 'AgentReply', 'stop': 'Stop', 'sessionStart': 'SessionStart', 'sessionEnd': 'SessionEnd'}
+
+
+def from_cursor(p):
+    """Cursor (and Cursor-based Grok Bot) hooks → the Claude field names."""
+    ev = p.get('hook_event_name') or ''
+    roots = p.get('workspace_roots') or []
+    out = {'hook_event_name': CURSOR_EVENTS.get(ev, ev), 'session_id': p.get('conversation_id'), 'cwd': roots[0] if roots else '',
+           'prompt': p.get('prompt') or ''}
+    if ev == 'afterShellExecution':
+        out.update(tool_name='Bash', tool_input={'command': p.get('command') or ''})
+    elif ev == 'afterFileEdit':
+        out.update(tool_name='Edit', tool_input={'file_path': p.get('file_path') or ''})
+    elif ev == 'afterMCPExecution':
+        out.update(tool_name='mcp__%s__' % (p.get('tool_name') or 'tool'), tool_input={})
+    elif ev == 'afterAgentResponse':
+        out['reply'] = p.get('text') or ''
+    elif ev == 'stop' and p.get('status') == 'error':
+        out['hook_event_name'] = 'StopFailure'
+    return out
+
+
 def main():
     src = sys.argv[1] if len(sys.argv) > 1 else 'claude'
     raw = sys.stdin.read()
@@ -82,10 +105,12 @@ def main():
         return
     if src == 'antigravity':
         p = from_antigravity(p, sys.argv[2] if len(sys.argv) > 2 else '')
-    cwd = p.get('cwd') or ('' if src == 'antigravity' else os.getcwd())
+    elif src == 'cursor':
+        p = from_cursor(p)
+    cwd = p.get('cwd') or ('' if src in ('antigravity', 'cursor') else os.getcwd())
     p['cwd'] = cwd
     start = os.environ.get('CLAUDE_PROJECT_DIR') if src == 'claude' else None   # where the session started, not the current cd
-    p['project'] = project_of(start or cwd) if (start or cwd) else 'Antigravity'
+    p['project'] = project_of(start or cwd) if (start or cwd) else ('Antigravity' if src == 'antigravity' else 'Cursor')
     p['root'] = root_of(start or cwd) if (start or cwd) else ''
     if p.get('hook_event_name') == 'Stop':
         reply = p.get('last_assistant_message')
@@ -121,4 +146,6 @@ if __name__ == '__main__':
         pass
     if len(sys.argv) > 1 and sys.argv[1] == 'antigravity':
         sys.stdout.write('{}')   # Antigravity expects a JSON object back from every hook
+    if len(sys.argv) > 2 and sys.argv[1] == 'cursor' and sys.argv[2] == 'beforeSubmitPrompt':
+        sys.stdout.write('{"continue": true}')   # Cursor waits for this answer before sending the prompt
     sys.exit(0)

@@ -24,4 +24,4 @@ launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 sleep 1
 curl -sf -o /dev/null http://127.0.0.1:4747/api/state && echo "hub is up on http://127.0.0.1:4747"
-zsh "$ROOT/app/build.sh"
+"$ROOT/app/build.sh"

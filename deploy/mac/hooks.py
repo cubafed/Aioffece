@@ -26,6 +26,33 @@ TARGETS = {
 }
 
 
+CURSOR_PATH = os.path.expanduser('~/.cursor/hooks.json')
+CURSOR_EVENTS = ['beforeSubmitPrompt', 'afterShellExecution', 'afterFileEdit', 'afterMCPExecution', 'afterAgentResponse', 'stop']
+
+
+def apply_cursor(mode):
+    """Cursor: {"version": 1, "hooks": {event: [{"command": ...}]}} — flat handler lists."""
+    if not os.path.isdir(os.path.dirname(CURSOR_PATH)):
+        print('cursor: not installed, skipped')
+        return
+    data = load(CURSOR_PATH)
+    hooks = data.setdefault('hooks', {})
+    if mode == 'status':
+        n = sum(MARK in (h.get('command') or '') for hs in hooks.values() for h in hs)
+        print('cursor: %d office hook entries in %s' % (n, CURSOR_PATH))
+        return
+    for ev in list(hooks):
+        hooks[ev] = [h for h in hooks[ev] if MARK not in (h.get('command') or '')]
+        if not hooks[ev]:
+            del hooks[ev]
+    if mode == 'install':
+        data.setdefault('version', 1)
+        for ev in CURSOR_EVENTS:
+            hooks.setdefault(ev, []).append({'command': '/usr/bin/python3 %s cursor %s' % (HOOK, ev)})
+    write(CURSOR_PATH, data)
+    print('cursor: %s (%s)' % ('installed' if mode == 'install' else 'removed', CURSOR_PATH))
+
+
 AGY_PATH = os.path.expanduser('~/.gemini/config/hooks.json')
 AGY_NAME = 'ai-office'
 
@@ -115,3 +142,4 @@ if __name__ == '__main__':
         sys.exit(__doc__)
     apply(mode)
     apply_agy(mode)
+    apply_cursor(mode)
