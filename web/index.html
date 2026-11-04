@@ -3,6 +3,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap">
 <style>
 /* Layout: full-bleed isometric diorama (office tower on an island), white cards float at the edges */
+[hidden]{display:none!important}
 :root{
   --bg:#dfe5db; --panel:rgba(255,255,255,.58); --panel-strong:rgba(255,255,255,.84); --rim:rgba(255,255,255,.7);
   --ink:#15171c; --muted:#59606b; --line:rgba(17,24,39,.08); --chip:rgba(255,255,255,.55);
@@ -138,6 +139,9 @@ body[data-dark="1"] .counts .hl{background:#3d2e14;color:#ffd38a}
 
 /* top right */
 .tr{top:calc(env(safe-area-inset-top,0px) + 12px);right:max(12px,env(safe-area-inset-right,0px));display:flex;gap:8px;background:none;border:0;box-shadow:none}
+.viewwrap{position:relative}
+.viewmenu{position:absolute;top:42px;right:0;display:flex;flex-direction:column;gap:4px;padding:6px;min-width:190px;z-index:5}
+.viewmenu .btn{justify-content:flex-start;box-shadow:none!important;width:100%}
 .tr .btn{min-height:34px;padding:0 12px;display:flex;align-items:center;gap:7px;box-shadow:var(--shadow)}
 .tr .btn.ghost{background:var(--panel);border:1px solid var(--rim);-webkit-backdrop-filter:blur(18px) saturate(180%);backdrop-filter:blur(18px) saturate(180%);box-shadow:var(--glass)}
 
@@ -339,11 +343,15 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
 <div class="card brief" id="brief" hidden></div>
 
 <div class="card tr">
-  <button class="btn ghost" id="darkBtn" aria-pressed="false"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span class="lbl" id="darkLbl">Тёмная</span></button>
-  <button class="btn ghost" id="tourBtn" title="Кино-тур: камера сама облетает офис"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg><span class="lbl">Тур</span></button>
-  <button class="btn ghost" id="skinBtn" title="Скин офиса"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.6-.8 1.6-1.7 0-.9-.7-1.3-.7-2.1 0-.9.7-1.6 1.6-1.6H17a4 4 0 0 0 4-4c0-4.7-4-8.6-9-8.6z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10.5" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/></svg><span class="lbl" id="skinLbl">Стекло</span></button>
-  <button class="btn ghost" id="miniBtn" aria-pressed="false" title="Миниатюра: размытые края, как у макета"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 18h18" opacity=".45"/><circle cx="12" cy="12" r="3"/></svg><span class="lbl">Миниатюра</span></button>
-  <button class="btn ghost" id="soundBtn" aria-pressed="false" title="Звуки офиса"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path id="soundWave" d="M15.5 8.5a5 5 0 0 1 0 7"/></svg><span class="lbl" id="soundLbl">Звук</span></button>
+  <div class="viewwrap"><button class="btn ghost" id="viewBtn" aria-expanded="false" aria-controls="viewMenu"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span class="lbl">Вид</span></button>
+  <div class="card viewmenu" id="viewMenu" hidden>
+    <button class="btn ghost" id="darkBtn" aria-pressed="false"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span class="lbl" id="darkLbl">Тёмная</span></button>
+    <button class="btn ghost" id="tourBtn" title="Кино-тур: камера сама облетает офис"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg><span class="lbl">Тур</span></button>
+    <button class="btn ghost" id="skinBtn" title="Скин офиса"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.6-.8 1.6-1.7 0-.9-.7-1.3-.7-2.1 0-.9.7-1.6 1.6-1.6H17a4 4 0 0 0 4-4c0-4.7-4-8.6-9-8.6z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10.5" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/></svg><span class="lbl" id="skinLbl">Стекло</span></button>
+    <button class="btn ghost" id="miniBtn" aria-pressed="false" title="Миниатюра: размытые края, как у макета"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 18h18" opacity=".45"/><circle cx="12" cy="12" r="3"/></svg><span class="lbl">Миниатюра</span></button>
+    <button class="btn ghost" id="soundBtn" aria-pressed="false" title="Звуки офиса"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path id="soundWave" d="M15.5 8.5a5 5 0 0 1 0 7"/></svg><span class="lbl" id="soundLbl">Звук</span></button>
+    <p class="muted" style="margin:6px 4px 2px;font-size:12px">⌘K — поиск и команды</p>
+  </div></div>
   <button class="btn ghost" id="chatsBtn" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="lbl">Чаты</span></button>
   <button class="btn ghost" id="hireBtn" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="lbl">Нанять</span></button>
   <button class="btn" id="connectBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0V7zM12 16v5"/></svg><span class="lbl">Подключить ИИ</span></button>
@@ -504,12 +512,14 @@ controls.minZoom = 0.55; controls.maxZoom = 4.5; controls.screenSpacePanning = t
 const HOME = { target: new THREE.Vector3(0, 7, 0), zoom: 1 };
 controls.target.copy(HOME.target); controls.update();
 
+const ENV = {};
+const skyTex = (top, mid, bot) => textTex(4, 256, (c, w, h) => { const gr = c.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, top); gr.addColorStop(0.55, mid); gr.addColorStop(1, bot); c.fillStyle = gr; c.fillRect(0, 0, w, h); });
 // soft studio environment: glass, metal and screens pick up reflections instead of reading as flat colour
 { const env = new THREE.Scene(), sky = textTex(64, 256, (c, w, h) => { const gr = c.createLinearGradient(0, 0, 0, h);
     gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.45, '#dfe9f2'); gr.addColorStop(0.55, '#c9d6c2'); gr.addColorStop(1, '#6f7a68'); c.fillStyle = gr; c.fillRect(0, 0, w, h); });
   env.add(new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), new THREE.MeshBasicMaterial({ map: sky, side: THREE.BackSide })));
   [[30, 25, 10], [-25, 20, -20]].forEach(([x, y, z]) => { const pl = new THREE.Mesh(new THREE.PlaneGeometry(18, 10), new THREE.MeshBasicMaterial({ color: 0xffffff })); pl.position.set(x, y, z); pl.lookAt(0, 0, 0); env.add(pl); });
-  scene.environment = new THREE.PMREMGenerator(renderer).fromScene(env, 0.04).texture; }
+  scene.environment = ENV.day = new THREE.PMREMGenerator(renderer).fromScene(env, 0.04).texture; }
 const hemi = new THREE.HemisphereLight(0xffffff, 0xb7c2ae, 0.55); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff3e2, 1.3);
 sun.position.set(-30, 60, 35); sun.castShadow = true;
@@ -594,7 +604,10 @@ function car(x, z, ry, col) { const g = new THREE.Group(); const cm = mat(col, {
 const movingCar = car(PX + 4.2, PZ + 22, Math.PI, '#ffffff');
 // lamp posts
 const lampHeads = [];
-[[-9, 4], [6, 4], [-16, 15], [8, 17], [-18, 2], [-14, -15], [PX + 6, PZ + 12]].forEach(([x, z]) => { cyl(0.07, 0.09, 3, M.dark, x, 1.5, z, scene, 8); const h = box(0.5, 0.15, 0.5, M.dark, x, 3.05, z); const b = box(0.4, 0.06, 0.4, M.lamp, x, 2.96, z, scene, { noCast: true }); lampHeads.push(b); });
+const POOL_MAT = new THREE.MeshBasicMaterial({ map: textTex(128, 128, (c, w, h) => { const g = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); g.addColorStop(0, 'rgba(255,196,110,0.9)'); g.addColorStop(0.45, 'rgba(255,170,80,0.35)'); g.addColorStop(1, 'rgba(255,160,60,0)'); c.fillStyle = g; c.fillRect(0, 0, w, h); }),
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 });
+[[-9, 4], [6, 4], [-16, 15], [8, 17], [-18, 2], [-14, -15], [PX + 6, PZ + 12]].forEach(([x, z]) => { cyl(0.07, 0.09, 3, M.dark, x, 1.5, z, scene, 8); const h = box(0.5, 0.15, 0.5, M.dark, x, 3.05, z); const b = box(0.4, 0.06, 0.4, M.lamp, x, 2.96, z, scene, { noCast: true }); lampHeads.push(b);
+  const pool = new THREE.Mesh(new THREE.CircleGeometry(2.6, 32), POOL_MAT); pool.rotation.x = -Math.PI / 2; pool.position.set(x, 0.14, z); pool.renderOrder = 2; scene.add(pool); });   // warm light on the ground at night
 // pond with deck
 { const pond = new THREE.Mesh(new THREE.CircleGeometry(1, 40), M.water); pond.rotation.x = -Math.PI / 2; pond.scale.set(7, 5, 1); pond.position.set(22, 0.06, 7); scene.add(pond);
   const edge = new THREE.Mesh(new THREE.RingGeometry(1, 1.1, 40), M.paving2); edge.rotation.x = -Math.PI / 2; edge.scale.set(7, 5, 1); edge.position.set(22, 0.07, 7); scene.add(edge);
@@ -1004,6 +1017,9 @@ $('tBoard').onclick = () => { S.tab = 'board'; renderUI(); };
 $('finToggle').onclick = () => { S.finOpen = !S.finOpen; $('finToggle').setAttribute('aria-expanded', String(S.finOpen)); $('finToggle').style.transform = S.finOpen ? '' : 'rotate(180deg)'; renderUI(); };
 $('connectBtn').onclick = renderConnect;
 $('hireBtn').onclick = () => openHire('');
+$('viewBtn').onclick = (e) => { e.stopPropagation(); const m = $('viewMenu'); m.hidden = !m.hidden; $('viewBtn').setAttribute('aria-expanded', String(!m.hidden)); };
+document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.viewwrap')) { $('viewMenu').hidden = true; $('viewBtn').setAttribute('aria-expanded', 'false'); } });
+$('tourBtn').addEventListener('click', () => { $('viewMenu').hidden = true; });
 $('skinBtn').onclick = () => { const ks = Object.keys(SKINS); setSkin(ks[(ks.indexOf(S.skin) + 1) % ks.length]); };
 $('tourBtn').onclick = () => (S.tour ? stopTour() : startTour());
 S.mini = store.get('office-mini') === '1'; document.body.classList.toggle('mini', S.mini); $('miniBtn').setAttribute('aria-pressed', String(S.mini));
@@ -1072,12 +1088,11 @@ function updateSun() {
 }
 function applySeason() {
   const w = S.live && S.hub && S.hub.weather, m = new Date().getMonth();
-  const winter = !!w && w.temp != null && w.temp <= 1 && [10, 11, 0, 1, 2].includes(m);
+  const winter = !!w && w.temp != null && (w.temp <= -2 || weatherKind() === 'snow') && [10, 11, 0, 1, 2].includes(m);
   if (S.winter === winter) return; S.winter = winter;
-  M.grass.color.set(winter ? '#e4eae8' : '#c6dcb0');
   if (!TREES.crowns) return;
   [TREES.crowns, TREES.pines].forEach((im, i) => { const src = TREES.base[i], dst = im.instanceColor.array;
-    for (let j = 0; j < dst.length; j++) dst[j] = winter ? src[j] + (0.92 - src[j]) * 0.55 : src[j];
+    for (let j = 0; j < dst.length; j++) dst[j] = winter ? src[j] + (0.92 - src[j]) * 0.3 : src[j];
     im.instanceColor.needsUpdate = true; });
 }
 // --- a Grok bot carries messages over the glass corridor
@@ -1162,11 +1177,15 @@ function openLook(id) {
 function applyDark() {
   const d = S.dark; document.body.dataset.dark = d ? '1' : '0';
   $('darkBtn').setAttribute('aria-pressed', String(d)); $('darkLbl').textContent = d ? 'Светлая' : 'Тёмная';
-  scene.background = new THREE.Color(d ? '#0e1216' : '#dfe5db');
-  hemi.intensity = d ? 0.22 : 0.55; hemi.color.set(d ? '#8796c8' : '#ffffff'); hemi.groundColor.set(d ? '#1a2030' : '#b7c2ae');
-  sun.intensity = d ? 0.35 : 1.3; sun.color.set(d ? '#9fb0ff' : '#fff3e2');
-  M.glass.emissive.set(d ? '#ffc777' : '#000000'); M.glass.emissiveIntensity = d ? 0.32 : 0;
+  ENV.night = ENV.night || skyTex('#050914', '#0d1630', '#1b2a4a'); ENV.dayBg = ENV.dayBg || skyTex('#cfe0ee', '#e4ebe2', '#dfe5db');
+  scene.background = d ? ENV.night : ENV.dayBg;
+  scene.environment = d ? null : ENV.day;                       // the daylight env map is what made the night look like noon
+  hemi.intensity = d ? 0.5 : 0.55; hemi.color.set(d ? '#4a5f96' : '#ffffff'); hemi.groundColor.set(d ? '#0c111d' : '#b7c2ae');
+  sun.intensity = d ? 0.55 : 1.3; sun.color.set(d ? '#7d95ff' : '#fff3e2');
+  M.glass.emissive.set(d ? '#ffb85c' : '#000000'); M.glass.emissiveIntensity = d ? 0.55 : 0;
+  CLOUDS.forEach(c => { c.children[0].material.color.set(d ? '#323a52' : '#ffffff'); c.children[0].material.opacity = d ? 0.75 : 0.88; });
   M.lamp.color.set(d ? '#ffe6a6' : '#e8e4da');
+  POOL_MAT.opacity = d ? 0.55 : 0;
   updateSun();
   applySkin();
   renderUI();
@@ -1689,7 +1708,7 @@ function updatePenthouse(st) {
 const CLOUDS = [], BIRDS = [];
 for (let i = 0; i < 7; i++) { const c = new THREE.Group(), cm = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, transparent: true, opacity: 0.92, flatShading: true });
   for (let k = 0; k < 4; k++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(1.2 + Math.random() * 1.6, 1), cm); m.position.set(k * 1.6 - 2.4, Math.random() * 0.8, (Math.random() - 0.5) * 1.6); m.castShadow = true; c.add(m); }
-  c.position.set(-60 + i * 18, 27 + Math.random() * 4, -24 + Math.random() * 40); scene.add(c); CLOUDS.push(c); }
+  c.scale.setScalar(0.65); c.position.set(-60 + i * 18, 30 + Math.random() * 4, i % 2 ? -34 - Math.random() * 8 : 26 + Math.random() * 8); scene.add(c); CLOUDS.push(c); }
 for (let i = 0; i < 4; i++) { const b = new THREE.Group(), bm = mat('#2b2e34'); [-1, 1].forEach(sd => { const w = box(0.5, 0.03, 0.16, bm, sd * 0.25, 0, 0, b, { noCast: true }); w.userData.side = sd; }); scene.add(b); BIRDS.push(b); }
 function cloudCount() { const c = S.live && S.hub && S.hub.weather ? S.hub.weather.code : 1; return c == null ? 4 : c === 0 ? 2 : c <= 2 ? 4 : 7; }
 function ambientTick(t) {
@@ -1701,7 +1720,7 @@ function ambientTick(t) {
     PH.queue.children.forEach(b => { b.position.y = 0.55 + Math.abs(Math.sin(t / 260 + b.userData.phase)) * 0.12; });
     PH.trophies.children.forEach(tg => { if (tg.userData.born) { const k = Math.min(1, (t - tg.userData.born) / 1200); tg.scale.setScalar(Math.max(0.01, k)); tg.rotation.y = (1 - k) * 6; if (k >= 1) tg.userData.born = 0; } });
   }
-  const op = S.dark ? 0.9 : 0.22; GLOWS.forEach(sp => { sp.material.opacity = op; });
+  const op = S.dark ? 0.4 : 0; GLOWS.forEach(sp => { sp.material.opacity = op; sp.visible = op > 0; });
   if (t - (S.glowGc || 0) > 10000) { S.glowGc = t; GLOWS = GLOWS.filter(sp => sp.parent); }
   allLevels().forEach(L => { if (L.inside.visible && L.anim) L.anim.forEach(fn => fn(t)); });
 }
@@ -1805,7 +1824,7 @@ function tourTick(t) {
   $('caption').querySelector('b').textContent = st.title; $('caption').querySelector('span').textContent = st.sub;
   if (st.kind === 'home') closeFloor();
   else if (st.kind === 'floor') openFloor(st.i);
-  else { closeFloor(); camGoal.target.set(BX + 3.8, roof.position.y + 1.2, BZ + 2); camGoal.zoom = innerWidth < 760 ? 2.2 : 2.8; camGoal.until = performance.now() + 2500; }
+  else { closeFloor(); camGoal.target.set(BX + 2, BASE + NF * H + 1, BZ + 1); camGoal.zoom = innerWidth < 760 ? 1.7 : 2.1; camGoal.until = performance.now() + 2500; }
 }
 // ---- soundscape: office hum, keyboards (more agents working → more typing), rain
 let noiseBuf = null, ambient = null;
