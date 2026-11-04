@@ -150,6 +150,20 @@ body.live #routinesCard{display:none}
 .lim .b{height:5px;border-radius:9px;background:var(--chip);overflow:hidden}
 .lim .b i{display:block;height:100%;border-radius:9px}
 .lim.stale{opacity:.55}
+.msg.peer{align-self:flex-start;background:var(--warm);border:1px solid var(--warm-line)}
+.brief{top:calc(env(safe-area-inset-top,0px) + 64px);left:50%;transform:translateX(-50%);width:min(560px,calc(100% - 700px));padding:10px 12px;display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.4}
+.fame{display:flex;gap:10px;padding:8px;align-items:flex-start}
+.fame .rk{font-weight:800;width:18px;text-align:center;color:var(--muted)}
+.fame .bg{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.fame .bg span{font-size:10px;font-weight:700;background:var(--chip);border-radius:99px;padding:1px 7px}
+.s-todo{background:var(--rest)}.s-doing{background:var(--ok)}.s-review{background:var(--wait)}.s-blocked{background:var(--err)}
+.bd{padding:8px 10px;display:flex;flex-direction:column;gap:8px}
+.bd .goal{background:var(--chip);border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.35}
+.bd .rep{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;white-space:pre-wrap}
+.bd .acts{display:flex;gap:6px;flex-wrap:wrap}
+.task{display:flex;gap:8px;align-items:flex-start;font-size:13px;padding:4px 0}
+.pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;color:#fff;white-space:nowrap;margin-top:1px}
+.rm{font-size:12px;line-height:1.35;padding:2px 0}
 .msg.user{align-self:flex-end;background:var(--chip);border:1px dashed var(--line)}
 .msg.tool{align-self:flex-start;background:transparent;color:var(--muted);font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;padding:2px 4px}
 .msg.tool::before{content:"› "}
@@ -172,7 +186,8 @@ body.live #routinesCard{display:none}
 .bub .nmtag{position:absolute;top:calc(100% + 4px);left:50%;transform:translateX(-50%);font-size:10px;font-weight:700;background:rgba(17,19,24,.8);color:#fff;padding:1px 6px;border-radius:5px;white-space:nowrap}
 
 /* chat drawer */
-.chat{top:0;right:0;bottom:0;width:330px;border-radius:0;border-width:0 0 0 1px;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);display:flex;flex-direction:column;z-index:5;animation:slide .25s ease-out}
+.chat{top:0;right:0;bottom:0;width:330px;border-radius:0;border-width:0 0 0 1px;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);display:flex;flex-direction:column;z-index:5}
+
 @keyframes slide{from{transform:translateX(20px);opacity:0}}
 .chat header{display:flex;gap:10px;align-items:center;padding:12px;border-bottom:1px solid var(--line)}
 .chat header .nm{font-weight:700;font-size:14px}
@@ -183,6 +198,8 @@ body.live #routinesCard{display:none}
 .msg time{display:block;font-size:10px;opacity:.6;margin-top:3px}
 body.chat-open .tr{display:none}
 body.chat-open .ctl{right:342px}
+body.chat-open .limits{display:none}
+body.chat-open .cmd{left:calc(50% - 170px);width:min(480px,calc(100% - 1060px))}
 .rh.dh{display:block;background:#16181c}
 .dh .who{display:flex;gap:10px;align-items:center}
 .dh .ava{width:38px;height:38px;border-radius:10px}
@@ -239,9 +256,11 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
 </div>
 
 <div class="card counts" id="counts" aria-live="polite"></div>
+<div class="card brief" id="brief" hidden></div>
 
 <div class="card tr">
   <button class="btn ghost" id="darkBtn" aria-pressed="false"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span class="lbl" id="darkLbl">Тёмная</span></button>
+  <button class="btn ghost" id="soundBtn" aria-pressed="false" title="Звуки офиса"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path id="soundWave" d="M15.5 8.5a5 5 0 0 1 0 7"/></svg><span class="lbl" id="soundLbl">Звук</span></button>
   <button class="btn ghost" id="hireBtn" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="lbl">Нанять</span></button>
   <button class="btn" id="connectBtn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0V7zM12 16v5"/></svg><span class="lbl">Подключить ИИ</span></button>
 </div>
@@ -267,7 +286,7 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
 
 <div class="card right" id="right">
   <div class="rh" id="rh"></div>
-  <div class="tabs" role="tablist"><button role="tab" id="tTeam" aria-selected="true">Команда</button><button role="tab" id="tUse" aria-selected="false">Расход</button></div>
+  <div class="tabs" role="tablist"><button role="tab" id="tTeam" aria-selected="true">Команда</button><button role="tab" id="tBoard" aria-selected="false" hidden>Доска</button><button role="tab" id="tUse" aria-selected="false">Расход</button></div>
   <div class="rl" id="rl"></div>
 </div>
 
@@ -445,6 +464,9 @@ const inIsland = (x, z, pad) => { const ax = Math.abs(x), az = Math.abs(z), hx =
 
 /* ---------- grounds ---------- */
 const BX = 2, BZ = -4, W = 15, D = 11, H = 2.6, BASE = 0.5; let NF = 6;
+const AX = BX + W + 5, AZ = BZ;   // Grok annex, east of the tower, joined by a glass corridor
+let ANNEX_L = null;
+const allLevels = () => LEVELS.filter(Boolean).concat(ANNEX_L ? [ANNEX_L] : []);
 box(W + 6, 0.5, D + 5, M.paving2, BX, 0.25, BZ + 0.5, scene, { noCast: true });
 box(26, 0.12, 13, M.paving, BX - 3, 0.06, 9.5, scene, { noCast: true });              // plaza
 box(4, 0.13, 10, M.paving, BX + 3, 0.065, 3.5, scene, { noCast: true });               // entrance path
@@ -502,7 +524,7 @@ box(6, 1.2, 0.6, M.dark, -10, 0.6, 18.5); box(5.6, 0.04, 0.02, M.red, -10, 0.25,
   const blocked = (x, z) => (x > BX - W / 2 - 4 && x < BX + W / 2 + 4 && z > BZ - D / 2 - 3 && z < BZ + D / 2 + 3)
     || (x > PX - 9 && x < PX + 9 && z > PZ - 10 && z < PZ + 10) || (x > PX + 0 && x < PX + 6.5 && z > PZ + 8 && z < 30)
     || (x > -17 && x < 12 && z > 3 && z < 16.5) || (Math.hypot((x - 22) / 8.5, (z - 7) / 6.5) < 1) || (x > 7 && x < 21 && z > 14.5 && z < 23.5)
-    || (x > -14 && x < -6 && z > 16.5 && z < 20.5) || (x > -10 && x < 8 && z > -25.5 && z < -13.5);
+    || (x > -14 && x < -6 && z > 16.5 && z < 20.5) || (x > -10 && x < 8 && z > -25.5 && z < -13.5) || (x > 9 && x < 32 && z > -12.5 && z < 3.5);
   for (let i = 0; i < 900 && spots.length < 120; i++) {
     const x = (rnd() - 0.5) * IW, z = (rnd() - 0.5) * ID;
     if (!inIsland(x, z, 2) || blocked(x, z) || spots.some(s => Math.hypot(s[0] - x, s[1] - z) < 2.2)) continue;
@@ -540,22 +562,36 @@ M.wallIn = mat('#eef0f3'); M.laptop = mat('#c9ccd2', { metalness: 0.3, roughness
 const chartTex = textTex(256, 140, (g, w, h) => { g.fillStyle = '#0f1420'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(255,255,255,.6)'; g.font = '600 13px Onest'; g.fillText('ТОКЕНОВ / МИН', 14, 24); g.fillStyle = '#fff'; g.font = '800 30px Onest'; g.fillText('1 085', 14, 58);
   g.strokeStyle = '#4ade80'; g.lineWidth = 3; g.beginPath(); for (let i = 0; i < 20; i++) { const x = 14 + i * 7, y = 100 - Math.sin(i / 2) * 12 - i; i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke();
   g.fillStyle = '#60a5fa'; for (let i = 0; i < 9; i++) { const bh = 14 + ((i * 37) % 40); g.fillRect(170 + i * 8, 124 - bh, 5, bh); } });
+function buildAnnexExtras(g, walls) {
+  // roof with a sign (hidden with the facade when the annex is opened) and the corridor to the tower
+  box(W + 0.7, 0.35, D + 0.7, M.slab, 0, H + 0.05, 0, walls);
+  const sign = textTex(512, 128, (c, w, h) => { c.fillStyle = '#16181c'; c.fillRect(0, 0, w, h); c.fillStyle = '#fff'; c.font = '800 84px Onest'; c.textAlign = 'center'; c.fillText('GROK', w / 2, 96); });
+  box(6.2, 1.5, 0.2, M.dark, 0, H + 1.05, D / 2 - 1.2, walls);
+  const sp = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.4), new THREE.MeshBasicMaterial({ map: sign, toneMapped: false })); sp.position.set(0, H + 1.05, D / 2 - 1.09); walls.add(sp);
+  const cx = -W / 2 - 2.5;
+  box(5, 0.25, 3, M.slab, cx, 0.12, 0, g);
+  box(5, 2.1, 0.06, M.railGlass, cx, 1.35, 1.5, g, { noCast: true }); box(5, 2.1, 0.06, M.railGlass, cx, 1.35, -1.5, g, { noCast: true });
+  box(5.2, 0.16, 3.2, M.slab, cx, 2.45, 0, g);
+  [-1.5, 1.5].forEach(z => [cx - 2.4, cx + 2.4].forEach(x => box(0.08, 2.2, 0.08, M.dark, x, 1.35, z, g)));
+}
 function buildLevel(f) {
-  const lvl = f.n - 1, g = new THREE.Group(), base = BASE + lvl * H; g.position.set(BX, base, BZ); scene.add(g);
+  const ax = !!f.annex, lvl = ax ? 0 : f.n - 1, g = new THREE.Group(), base = BASE + lvl * H; g.position.set(ax ? AX : BX, base, ax ? AZ : BZ); scene.add(g);
   const wh = H - 0.3, wy = 0.3 + wh / 2;
   box(W + 0.7, 0.3, D + 0.7, M.slab, 0, 0.15, 0, g);
   box(W + 0.7, 0.16, 0.24, M.leaf, 0, 0.38, D / 2 + 0.23, g); box(0.24, 0.16, D + 0.7, M.leaf, W / 2 + 0.23, 0.38, 0, g);
   box(W - 0.3, 0.03, D - 0.3, M.inner, 0, 0.31, 0, g, { noCast: true });
   // facade (hidden on the open floor)
   const walls = new THREE.Group(); g.add(walls);
-  [[W, wh, 0.1, 0, wy, D / 2 - 0.05], [W, wh, 0.1, 0, wy, -D / 2 + 0.05], [0.1, wh, D, W / 2 - 0.05, wy, 0], [0.1, wh, D, -W / 2 + 0.05, wy, 0]].forEach(a => { const m = box(a[0], a[1], a[2], M.glass, a[3], a[4], a[5], walls); m.userData.level = lvl; pickables.push(m); });
+  const gm = M.glass.clone();
+  [[W, wh, 0.1, 0, wy, D / 2 - 0.05], [W, wh, 0.1, 0, wy, -D / 2 + 0.05], [0.1, wh, D, W / 2 - 0.05, wy, 0], [0.1, wh, D, -W / 2 + 0.05, wy, 0]].forEach(a => { const m = box(a[0], a[1], a[2], gm, a[3], a[4], a[5], walls); m.userData.floor = f; pickables.push(m); });
   const fz = finRow(W, 21, x => [x, wy, D / 2 + 0.12]), bz = finRow(W, 21, x => [x, wy, -D / 2 - 0.12]);
   const rx = finRow(D, 15, z => [W / 2 + 0.12, wy, z]), lx = finRow(D, 15, z => [-W / 2 - 0.12, wy, z]);
   instFins([...fz[0], ...bz[0]], M.fin, walls, [0.12, wh, 0.22]); instFins([...fz[1], ...bz[1]], M.finDark, walls, [0.12, wh, 0.22]);
   instFins([...rx[0], ...lx[0]], M.fin, walls, [0.22, wh, 0.12]); instFins([...rx[1], ...lx[1]], M.finDark, walls, [0.22, wh, 0.12]);
   // terrace with planters, alternating sides
   const ter = new THREE.Group(); g.add(ter);
-  if (lvl % 2 === 0) { box(2.2, 0.22, 7, M.deck, W / 2 + 1.35, 0.11, 0.5, ter); box(0.05, 0.9, 7, M.railGlass, W / 2 + 2.4, 0.65, 0.5, ter, { noCast: true });
+  if (ax) buildAnnexExtras(g, walls);
+  else if (lvl % 2 === 0) { box(2.2, 0.22, 7, M.deck, W / 2 + 1.35, 0.11, 0.5, ter); box(0.05, 0.9, 7, M.railGlass, W / 2 + 2.4, 0.65, 0.5, ter, { noCast: true });
     for (let i = 0; i < 2; i++) { box(0.7, 0.12, 1.6, M.white, W / 2 + 1.35, 0.35, -1.6 + i * 1.1, ter); }
     const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5, 1), M.leaf); b.position.set(W / 2 + 1.35, 1, 3); b.castShadow = true; ter.add(b); box(0.6, 0.45, 0.6, M.planter, W / 2 + 1.35, 0.42, 3, ter); }
   else { box(6.5, 0.22, 2.2, M.deck, -W / 2 + 4, 0.11, D / 2 + 1.35, ter); box(6.5, 0.9, 0.05, M.railGlass, -W / 2 + 4, 0.65, D / 2 + 2.4, ter, { noCast: true });
@@ -567,8 +603,10 @@ function buildLevel(f) {
   box(W - 0.2, 0.9, 0.04, M.railGlass, 0, 0.45, D / 2 - 0.1, inside, { noCast: true }); box(W - 0.2, 0.04, 0.06, M.dark, 0, 0.92, D / 2 - 0.1, inside, { noCast: true });
   box(0.04, 0.9, D - 0.2, M.railGlass, W / 2 - 0.1, 0.45, 0, inside, { noCast: true }); box(0.06, 0.04, D - 0.2, M.dark, W / 2 - 0.1, 0.92, 0, inside, { noCast: true });
   // back wall: whiteboard with stickies, clock, tv with a chart
-  box(2.2, 1.1, 0.05, M.white, -3.9, 1.35, -D / 2 + 0.25, inside);
-  ['#fde68a', '#bfdbfe', '#fbcfe8', '#bbf7d0', '#fde68a', '#bfdbfe'].forEach((c, i) => box(0.36, 0.3, 0.02, mat(c), -4.6 + (i % 3) * 0.7, 1.55 - (i / 3 | 0) * 0.42, -D / 2 + 0.29, inside, { noCast: true }));
+  box(2.7, 1.45, 0.05, M.white, -3.9, 1.42, -D / 2 + 0.25, inside);
+  const bc = document.createElement('canvas'); bc.width = 512; bc.height = 276;
+  const btex = new THREE.CanvasTexture(bc); btex.encoding = THREE.sRGBEncoding; btex.anisotropy = 8;
+  const bp = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.4), new THREE.MeshBasicMaterial({ map: btex, toneMapped: false })); bp.position.set(-3.9, 1.42, -D / 2 + 0.285); inside.add(bp);
   const clk = cyl(0.28, 0.28, 0.05, M.white, -1.6, 1.75, -D / 2 + 0.25, inside, 24); clk.rotation.x = Math.PI / 2;
   box(0.03, 0.18, 0.02, M.dark, -1.6, 1.81, -D / 2 + 0.29, inside, { noCast: true }); box(0.13, 0.03, 0.02, M.dark, -1.55, 1.75, -D / 2 + 0.29, inside, { noCast: true });
   box(2.6, 1.45, 0.08, M.monitor, 1.3, 1.45, -D / 2 + 0.25, inside);
@@ -601,8 +639,9 @@ function buildLevel(f) {
   [[-0.6, -1.1], [0.6, -1.1], [-0.6, 1.1], [0.6, 1.1]].forEach(([dx, dz]) => box(0.05, 0.7, 0.05, M.dark, 4.3 + dx, 0.35, -3.5 + dz, inside));
   [[-6.7, -4.7], [2.9, -4.8], [6.7, 4.7], [2.8, 4.6]].forEach(([x, z]) => { cyl(0.26, 0.2, 0.45, M.white, x, 0.23, z, inside, 14); const p = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 1), M.leaf); p.position.set(x, 0.85, z); p.castShadow = true; inside.add(p); });
   const agents = new THREE.Group(); inside.add(agents);
-  const L = { f, lvl, g, base, walls, inside, agents };
-  LEVELS[lvl] = L; f.L = L; return L;
+  const L = { f, lvl, g, base, walls, inside, agents, glass: gm, boardTex: { c: bc, t: btex, sig: null } };
+  if (ax) { L.lvl = -1; ANNEX_L = L; } else LEVELS[lvl] = L;
+  f.L = L; return L;
 }
 // roof
 const roof = new THREE.Group(); roof.position.set(BX, BASE + NF * H, BZ); scene.add(roof);
@@ -652,7 +691,7 @@ function makeAgent(a, delay) {
   const bub = document.createElement('button'); bub.className = 'bub'; bub.addEventListener('click', () => select(a.id)); $('ov').appendChild(bub);
   const r = { a, g, body, bub, phase: Math.random() * 6, drop: performance.now() + (delay || 0) }; AG.set(a.id, r); place(a); paintBubble(a); return r;
 }
-function place(a) { const r = AG.get(a.id); if (!r) return; const s = seatFor(a); r.g.position.set(s.x, 0, s.z); r.g.rotation.y = s.ry; }
+function place(a) { const r = AG.get(a.id); if (!r) return; const s = seatFor(a); r.goal = s; if (!r.placed) { r.g.position.set(s.x, 0, s.z); r.g.rotation.y = s.ry; r.placed = true; } }
 function paintBubble(a) {
   const r = AG.get(a.id); if (!r) return;
   r.bub.className = 'bub ' + a.status + (S.sel === a.id ? ' sel' : '');
@@ -666,26 +705,27 @@ function paintBubble(a) {
 function rebuild() {
   const openName = S.open && LEVELS.length && FLOORS[S.floor] ? FLOORS[S.floor].name : null;
   AG.forEach(r => r.bub.remove()); AG.clear();
-  LEVELS.forEach(L => { scene.remove(L.g); if (L.tag) L.tag.remove(); L.g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); });
+  allLevels().forEach(L => { scene.remove(L.g); if (L.tag) L.tag.remove(); L.g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); });
+  ANNEX_L = null;
   LEVELS.length = 0; pickables.length = 0;
-  NF = Math.max(1, FLOORS.length);
-  FLOORS.forEach((f, i) => { f.n = FLOORS.length - i; f.agents.forEach(a => { a.fi = i; a.seatKind = null; }); });
+  NF = Math.max(1, FLOORS.filter(f => !f.annex).length);
+  FLOORS.forEach((f, i) => { f.n = f.annex ? 'G' : NF - i; f.agents.forEach(a => { a.fi = i; a.seatKind = null; }); });
   FLOORS.forEach(buildLevel);
-  LEVELS.forEach(L => { const b = document.createElement('button'); b.className = 'ftag'; b.addEventListener('click', () => openFloor(FLOORS.indexOf(L.f))); $('ov').appendChild(b); L.tag = b; });
+  allLevels().forEach(L => { const b = document.createElement('button'); b.className = 'ftag'; b.addEventListener('click', () => openFloor(FLOORS.indexOf(L.f))); $('ov').appendChild(b); L.tag = b; });
   roof.position.y = BASE + NF * H; HOME.target.y = Math.max(3, NF * H * 0.45);
   ALL().forEach(a => makeAgent(a, 0));
   if (openName) { const k = FLOORS.findIndex(f => f.name === openName); if (k < 0) closeFloor(); else S.floor = k; }
   else if (S.floor >= FLOORS.length) S.floor = 0;
   if (!S.open) { camGoal.target.copy(HOME.target); camGoal.until = performance.now() + 900; }
 }
-function paintTags() { LEVELS.forEach(L => { const f = L.f, busy = f.agents.filter(a => a.status === 'working' || a.status === 'waiting').length, w = f.agents.filter(a => a.status === 'waiting').length;
+function paintTags() { allLevels().forEach(L => { const f = L.f, busy = f.agents.filter(a => a.status === 'working' || a.status === 'waiting').length, w = f.agents.filter(a => a.status === 'waiting').length;
   L.tag.setAttribute('aria-current', String(S.open && FLOORS[S.floor] === f));
   L.tag.innerHTML = `<span class="n" style="background:${f.color}">${f.n}</span>${esc(f.name)} <span class="c">${busy}/${f.agents.length}</span>${w ? `<span class="w"><span class="dot s-waiting"></span>${w}</span>` : ''}`; }); }
 
 /* ================= state changes ================= */
 const camGoal = { target: HOME.target.clone(), zoom: 1, until: 0 };
 function openFloor(i) { S.floor = i; S.open = true; S.sel = null; const L = FLOORS[i].L;
-  camGoal.target.set(BX + 1, L.base + 0.8, BZ + 1); camGoal.zoom = innerWidth < 760 ? 1.5 : 1.85; camGoal.until = performance.now() + 1200; renderUI(); }
+  camGoal.target.set((L.lvl < 0 ? AX : BX) + 1, L.base + 0.8, BZ + 1); camGoal.zoom = innerWidth < 760 ? 1.5 : 1.85; camGoal.until = performance.now() + 1200; renderUI(); }
 function closeFloor() { S.open = false; S.sel = null; camGoal.target.copy(HOME.target); camGoal.zoom = 1; camGoal.until = performance.now() + 1200; renderUI(); }
 function log(who, what, st) { const l = [nowHM(), who, what, st || 'working']; LOG.forEach(x => x.fresh = false); l.fresh = true; LOG.unshift(l); LOG.length = Math.min(LOG.length, 40); }
 function setStatus(a, st, task) { const wasRest = a.status === 'resting'; if (a.status !== st) { a.since = Date.now(); a.steps++; } a.status = st; if (task) a.task = task; if (wasRest !== (st === 'resting')) place(a); paintBubble(a); }
@@ -700,9 +740,11 @@ const ST = { working: 'Работает', waiting: 'Ждёт тебя', done: '�
 const ava = (a, cls) => `<span class="ava ${cls || ''}" style="background:${KIND[a.kind].color};--c:${KIND[a.kind].color}" aria-hidden="true"><i></i></span>`;
 function renderUI() {
   $('floorsN').textContent = FLOORS.length;
-  $('hireBtn').hidden = !S.live; renderLimits();
+  $('hireBtn').hidden = !S.live; renderLimits(); renderBrief(); paintSound();
+  if (S.live && S.hub.weather && S.hub.weather.temp != null) $('modeLbl').textContent = 'Live · Москва ' + (S.hub.weather.temp > 0 ? '+' : '') + Math.round(S.hub.weather.temp) + '°';
   if (S.live) { const a = S.sel && byId(S.sel); $('cmdWho').textContent = a && a.managed ? a.name : 'новому агенту'; }
-  $('tUse').hidden = S.live && !S.open; if ($('tUse').hidden && S.tab === 'use') S.tab = 'team';
+  $('tUse').hidden = false; $('tUse').textContent = S.live && !S.open ? 'Почёт' : 'Расход';
+  $('tBoard').hidden = !S.live || !S.open || !!(FLOORS[S.floor] || {}).annex; if ($('tBoard').hidden && S.tab === 'board') S.tab = 'team';
   const all = ALL(), c = s => all.filter(a => a.status === s).length;
   $('counts').innerHTML = `<span><i class="dot s-working"></i><b>${c('working')}</b><span class="t muted" style="padding:0">работают</span></span><span class="${c('waiting') ? 'hl' : ''}"><i class="dot s-waiting"></i><b>${c('waiting')}</b><span class="t" style="padding:0">ждут</span></span><span><i class="dot s-error"></i><b>${c('error')}</b><span class="t muted" style="padding:0">застряли</span></span><span><i class="dot s-resting"></i><b>${c('resting')}</b><span class="t muted" style="padding:0">отдыхают</span></span>`;
   $('floors').innerHTML = FLOORS.map((f, i) => { const busy = f.agents.filter(a => a.status !== 'resting' && a.status !== 'done').length;
@@ -735,7 +777,7 @@ function renderUI() {
     const f = FLOORS[S.floor], w = f.agents.filter(a => a.status === 'working').length, wt = f.agents.filter(a => a.status === 'waiting').length;
     $('rh').style.background = f.color;
     $('rh').innerHTML = `<div><div class="nm">${esc(f.name)}</div><div class="big">${w}<small> работают</small></div></div><div class="meta">Этаж ${f.n} · ${f.agents.length} ботов<br>ждут ${wt}<br>застряли 0</div>`;
-    $('rl').innerHTML = S.tab === 'team' ? f.agents.map(a => `<div class="ag" role="button" tabindex="0" data-sel="${a.id}">${ava(a)}<div class="tx"><div class="nm">${esc(a.name)} <span class="muted" style="font-weight:500;font-size:11px">${KIND[a.kind].label}</span></div><div class="ds muted">${ST[a.status]} · ${esc(a.task)}</div></div><i class="dot s-${a.status} st"></i></div>`).join('')
+    $('rl').innerHTML = S.tab === 'board' ? boardHtml(f) : S.tab === 'team' ? f.agents.map(a => `<div class="ag" role="button" tabindex="0" data-sel="${a.id}">${ava(a)}<div class="tx"><div class="nm">${esc(a.name)} <span class="muted" style="font-weight:500;font-size:11px">${KIND[a.kind].label}</span></div><div class="ds muted">${ST[a.status]} · ${esc(a.task)}</div></div><i class="dot s-${a.status} st"></i></div>`).join('')
       : f.agents.map(a => `<div class="use"><div class="r"><span>${esc(a.name)}</span><span class="muted">${S.live ? a.steps + ' шагов' : (a.use / 10).toFixed(1) + '% лимита'}</span></div><div class="bar"><i style="width:${S.live ? Math.min(100, a.steps) : a.use * 2}%;background:${KIND[a.kind].color}"></i></div></div>`).join('');
   } else {
     const w = all.filter(a => a.status === 'working').length;
@@ -743,10 +785,11 @@ function renderUI() {
     $('rh').innerHTML = `<div><div class="nm">Всё здание</div><div class="big">${w}<small> работают</small></div></div><div class="meta">${FLOORS.length} этажей · ${all.length} ботов<br>ждут ${waiting.length}<br>застряли 0</div>`;
     $('rl').innerHTML = S.tab === 'team' ? FLOORS.map((f, i) => { const b = f.agents.filter(a => a.status === 'working').length;
       return `<div class="ag" role="button" tabindex="0" data-floor="${i}"><span class="ava" style="background:${f.color};color:#fff;font-weight:700;font-size:12px">${f.n}</span><div class="tx"><div class="nm">${esc(f.name)}</div><div class="ds muted">${b} из ${f.agents.length} работают${f.agents.some(a => a.status === 'waiting') ? ' · есть запрос' : ''}</div></div></div>`; }).join('')
-      : [['Claude Max', 'claude', 31], ['ChatGPT · Codex', 'codex', 48], ['SuperGrok', 'grok', 12], ['Gemini Pro', 'gemini', 20]].map(([n, k, p]) => `<div class="use"><div class="r"><span>${n}</span><span class="muted">${p}% недели</span></div><div class="bar"><i style="width:${p}%;background:${KIND[k].color}"></i></div></div>`).join('');
+      : S.live ? fameHtml() : [['Claude Max', 'claude', 31], ['ChatGPT · Codex', 'codex', 48], ['SuperGrok', 'grok', 12], ['Gemini Pro', 'gemini', 20]].map(([n, k, p]) => `<div class="use"><div class="r"><span>${n}</span><span class="muted">${p}% недели</span></div><div class="bar"><i style="width:${p}%;background:${KIND[k].color}"></i></div></div>`).join('');
   }
   $('routines').innerHTML = ROUTINES.map((r, i) => `<div class="rt ${r.on ? '' : 'off'}"><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div style="min-width:0;flex:1"><div class="nm">${r.name}</div><div class="ds muted">${r.who} · ${r.when}</div></div><div class="side">${r.on ? `<span class="cd">${fmtIn(r.at - Date.now())}</span>` : '<span class="cd" style="background:var(--chip);color:var(--muted)">выкл</span>'}<button class="btn ghost" style="min-height:24px;padding:2px 8px;font-size:11px" data-routine="${i}">${r.on ? 'Выключить' : 'Включить'}</button></div></div>`).join('');
-  $('tTeam').setAttribute('aria-selected', String(S.tab === 'team')); $('tUse').setAttribute('aria-selected', String(S.tab === 'use'));
+  $('tTeam').setAttribute('aria-selected', String(S.tab === 'team')); $('tUse').setAttribute('aria-selected', String(S.tab === 'use')); $('tBoard').setAttribute('aria-selected', String(S.tab === 'board'));
+  allLevels().forEach(drawBoard3D);
   $('log').innerHTML = LOG.slice(0, 5).map(l => `<div class="${l.fresh ? 'new' : ''}"><span class="tm">${l[0]}</span><i class="dot s-${l[3]}"></i><b>${esc(l[1])}</b><span class="tx">${esc(l[2])}</span></div>`).join('');
   const to = S.sel ? byId(S.sel) : null;
   if (!S.live) { $('cmdWho').textContent = to ? to.name : 'Диспетчер'; $('cmdText').placeholder = to ? 'Задача для ' + to.name + '…' : 'Дай задачу… Диспетчер раздаст по этажам'; }
@@ -779,7 +822,7 @@ function renderConnect() {
 }
 
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-approve],[data-deny],[data-chat],[data-floor],[data-home],[data-sel],[data-wake],[data-pause],[data-closechat],[data-closeconn],[data-unsel],[data-ping],[data-q],[data-routine],[data-forget],[data-wait],[data-ntfy],[data-copyprompt],[data-stop],[data-fork],[data-kind],[data-closehire]'); if (!t) return;
+  const t = e.target.closest('[data-approve],[data-deny],[data-chat],[data-floor],[data-home],[data-sel],[data-wake],[data-pause],[data-closechat],[data-closeconn],[data-unsel],[data-ping],[data-q],[data-routine],[data-forget],[data-wait],[data-ntfy],[data-copyprompt],[data-stop],[data-fork],[data-kind],[data-closehire],[data-mission],[data-briefclose]'); if (!t) return;
   const d = t.dataset;
   if (d.closeconn) { if (e.target === t || t.tagName === 'BUTTON') $('connectWrap').innerHTML = ''; return; }
   if (d.approve) approve(d.approve);
@@ -788,6 +831,8 @@ document.addEventListener('click', (e) => {
   else if (d.closechat) { S.chat = null; renderChat(); }
   else if (d.stop) { api('/api/stop', { id: d.stop }).catch(e => toastErr(e)); }
   else if (d.kind) { S.hireKind = d.kind; renderHire(); }
+  else if (d.mission) openMission(d.mission);
+  else if (d.briefclose) { store.set('office-brief', S.hub.briefing.day); renderBrief(); }
   else if (d.closehire) { if (e.target === t || t.tagName === 'BUTTON') $('hireWrap').innerHTML = ''; }
   else if (d.forget) { api('/api/forget', { id: d.forget }).catch(e => { log('Офис', e.message, 'error'); renderUI(); }); S.sel = null; }
   else if (d.wait !== undefined) { api('/api/settings', { approveWait: +d.wait }).then(() => { S.hub.settings.approveWait = +d.wait; renderConnect(); }).catch(e => { log('Офис', e.message, 'error'); renderUI(); }); }
@@ -810,6 +855,7 @@ document.addEventListener('click', (e) => {
 });
 $('tTeam').onclick = () => { S.tab = 'team'; renderUI(); };
 $('tUse').onclick = () => { S.tab = 'use'; renderUI(); };
+$('tBoard').onclick = () => { S.tab = 'board'; renderUI(); };
 $('finToggle').onclick = () => { S.finOpen = !S.finOpen; $('finToggle').setAttribute('aria-expanded', String(S.finOpen)); $('finToggle').style.transform = S.finOpen ? '' : 'rotate(180deg)'; renderUI(); };
 $('connectBtn').onclick = renderConnect;
 $('hireBtn').onclick = () => openHire('');
@@ -828,7 +874,7 @@ document.addEventListener('keydown', (e) => {
   if (e.target.matches('input')) return;
   if (e.key === 'Escape') { if ($('connectWrap').innerHTML) $('connectWrap').innerHTML = ''; else if (S.chat) { S.chat = null; renderChat(); } else if (S.sel) { S.sel = null; renderUI(); } else closeFloor(); }
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role="button"]')) { e.preventDefault(); e.target.click(); }
-  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); const cur = S.open ? FLOORS[S.floor].n : 0, n = Math.max(1, Math.min(NF, cur + (e.key === 'ArrowUp' ? 1 : -1))); openFloor(FLOORS.findIndex(f => f.n === n)); }
+  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); const cur = S.open && !FLOORS[S.floor].annex ? FLOORS[S.floor].n : 0, n = Math.max(1, Math.min(NF, cur + (e.key === 'ArrowUp' ? 1 : -1))); openFloor(FLOORS.findIndex(f => f.n === n)); }
 });
 // picking
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2(); let down = null;
@@ -840,7 +886,7 @@ canvas.addEventListener('pointerup', e => {
   const hits = ray.intersectObjects([...bodies, ...pickables.filter(p => p.parent.visible)], false);
   if (!hits.length) return;
   const o = hits[0].object;
-  if (o.userData.agentId) select(o.userData.agentId); else if (o.userData.level !== undefined) openFloor(FLOORS.findIndex(f => f.n === o.userData.level + 1));
+  if (o.userData.agentId) select(o.userData.agentId); else if (o.userData.floor) openFloor(FLOORS.indexOf(o.userData.floor));
 });
 
 /* ================= look ================= */
@@ -867,11 +913,19 @@ function frame(t) {
   controls.update();
   // cutaway: floors above the open one disappear, the open floor loses its facade
   const openL = S.open ? FLOORS[S.floor].L : null;
-  LEVELS.forEach(L => { const vis = !openL || L.lvl <= openL.lvl; L.g.visible = vis; L.tag.style.display = vis ? '' : 'none';
+  allLevels().forEach(L => { if (L.glass) { const busy = L.f.agents.some(x => x.status === 'working'); L.glass.emissive.set(S.dark ? '#ffc777' : '#000000'); L.glass.emissiveIntensity = S.dark ? (busy ? 0.55 : 0.04) : 0; }
+    const vis = !openL || openL.lvl < 0 || L.lvl < 0 || L.lvl <= openL.lvl; L.g.visible = vis; L.tag.style.display = vis ? '' : 'none';
     L.walls.visible = L !== openL; L.inside.visible = L === openL; });
-  roof.visible = !openL;
+  roof.visible = !openL || openL.lvl < 0;
   // agents
   AG.forEach(r => { const a = r.a, b = r.body, p = r.phase, base = a.status === 'resting' ? 0.86 : 0.98;
+    if (r.goal) {   // walk to the new seat instead of teleporting
+      const dx = r.goal.x - r.g.position.x, dz = r.goal.z - r.g.position.z, dist = Math.hypot(dx, dz);
+      if (dist > 0.05 && !reduce) { const step = Math.min(dist, 0.06); r.g.position.x += dx / dist * step; r.g.position.z += dz / dist * step; r.g.rotation.y = Math.atan2(-dx, -dz); r.walking = true; }
+      else { r.g.position.x = r.goal.x; r.g.position.z = r.goal.z; r.g.rotation.y = r.goal.ry; r.walking = false; }
+    }
+    if (r.walking) { b.position.y = base + Math.abs(Math.sin(t / 90)) * 0.12; b.rotation.set(0, 0, Math.sin(t / 90) * 0.08); smoke(r, false); return finishBubble(r, a, base); }
+    smoke(r, a.status === 'error' && !reduce, t);
     if (reduce) b.position.y = base;
     else if (a.status === 'working') { b.position.y = base + Math.abs(Math.sin(t / 180 + p)) * 0.05; b.rotation.y = Math.sin(t / 900 + p) * 0.25; b.rotation.z = 0; }
     else if (a.status === 'waiting') { b.position.y = base + Math.abs(Math.sin(t / 260 + p)) * 0.16; b.rotation.set(0, 0, 0); }
@@ -881,15 +935,20 @@ function frame(t) {
     if (used >= 100 && a.status !== 'resting') { b.rotation.z = 0.5; b.position.y = base - 0.05; }   // out of limit: dozing at the desk
     else if (used >= 85 && a.status !== 'resting') { b.scale.set(1.05, 0.9, 1.05); }                 // tired
     else if (a.status !== 'resting') b.scale.set(1, 1, 1);
-    const onOpen = openL && FLOORS[a.fi].L === openL, show = onOpen || (!S.open && a.status === 'waiting');
-    r.bub.style.display = show ? '' : 'none';
-    if (show) { v3.set(0, base + 0.9, 0); r.g.localToWorld(v3); v3.project(camera); r.bub.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px'; r.bub.style.top = ((1 - v3.y) / 2 * innerHeight) + 'px'; } });
+    finishBubble(r, a, base); });
   // floor tags at the left-front corner of each level
-  LEVELS.forEach(L => { v3.set(-W / 2 - 0.4, H * 0.55, D / 2 + 0.4); L.g.localToWorld(v3); v3.project(camera);
+  allLevels().forEach(L => { v3.set(-W / 2 - 0.4, H * 0.55, D / 2 + 0.4); L.g.localToWorld(v3); v3.project(camera);
     L.tag.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px'; L.tag.style.top = ((1 - v3.y) / 2 * innerHeight) + 'px'; });
   // ambient life
   if (!reduce) {
     const ang = t / 4000; drone.position.set(BX + Math.cos(ang) * 13, roof.position.y + 4 + Math.sin(t / 700) * 0.3, BZ + Math.sin(ang) * 13); drone.rotation.y = -ang;
+    const dr = S.drone && AG.get(S.drone.id);
+    if (dr && t - S.drone.t0 < 3200) {      // fly the message to the agent and back
+      const k = Math.sin(Math.min(1, (t - S.drone.t0) / 3200) * Math.PI);
+      v3.set(0, 2.4, 0); dr.g.localToWorld(v3); drone.position.lerp(v3, k);
+    } else if (S.drone) S.drone = null;
+    animateCat(t);
+    weatherTick();
     rotors.forEach(r => r.rotation.y = t / 30);
     const cz = PZ + 24 - ((t / 25) % 1000) / 1000 * 26; movingCar.position.z = cz;
     spray.scale.setScalar(1 + Math.sin(t / 200) * 0.08);
@@ -946,7 +1005,7 @@ function renderChatLive(soft) {
   if (keep !== null) { $('chatIn').value = keep; $('chatIn').focus(); }
   const f = $('chatForm'); if (f) f.onsubmit = (e) => { e.preventDefault(); const v = $('chatIn').value.trim(); if (!v) return; $('chatIn').value = '';
     if (f.dataset.forkform) api('/api/fork', { id: a.id, text: v }).then(j => openChat(j.id)).catch(toastErr);
-    else api('/api/send', { id: a.id, text: v }).then(() => loadChat(a.id)).catch(toastErr); };
+    else api('/api/send', { id: a.id, text: v }).then(() => { S.drone = { id: a.id, t0: performance.now() }; loadChat(a.id); }).catch(toastErr); };
 }
 const KIND_RU = { claude: 'Клод · Claude Code', codex: 'Кодекс · Codex', antigravity: 'Джемини · Antigravity' };
 function openHire(task) {
@@ -985,6 +1044,120 @@ function renderLimits() {
     : '<p class="muted" style="margin:4px 0">Нет данных о лимитах</p>';
   $('limNote').textContent = S.live ? 'из Vibe Island' : 'демо';
 }
+const TASK_RU = { todo: 'План', doing: 'В работе', review: 'Ревью', done: 'Готово', blocked: 'Застряло' };
+function boardHtml(f) {
+  const b = (S.hub.boards || {})[f.name] || { goal: '', status: '', report: '', tasks: [], room: [] };
+  const tasks = b.tasks.length ? b.tasks.map(t => `<div class="task"><span class="pill s-${t.status}">${TASK_RU[t.status] || t.status}</span><div><b>#${t.id}</b> ${esc(t.title)}<div class="muted" style="font-size:11px">${esc(t.owner || 'никто не взял')}${t.note ? ' · ' + esc(t.note) : ''}</div></div></div>`).join('') : '<p class="muted" style="margin:0;font-size:12px">Задач пока нет</p>';
+  const room = b.room.length ? b.room.map(m => `<div class="rm"><span class="muted">${m.t}</span> <b>${esc(m.from)}</b>${m.to && !['all', 'все', 'всем'].includes(m.to) ? ' → ' + esc(m.to) : ''}: ${esc(m.text)}</div>`).join('') : '';
+  return `<div class="bd"><div class="goal">${b.goal ? `<p class="cap" style="margin-bottom:3px">Цель${b.status === 'done' ? ' · выполнена' : b.status === 'active' ? ' · в работе' : ''}</p>${esc(b.goal)}` : 'Цели нет. Поставь её: Диспетчер разобьёт на задачи, наймёт исполнителей, каждый будет работать в своей git-ветке, а слияние ты одобришь.'}</div>
+    ${b.report ? `<div class="rep"><b>Отчёт.</b> ${esc(b.report)}</div>` : ''}
+    <div class="acts"><button class="btn" data-mission="goal">${b.goal ? 'Новая цель' : 'Поставить цель'}</button><button class="btn ghost" data-mission="task">+ Задача</button>${b.lead ? '<button class="btn ghost" data-mission="room">Написать команде</button>' : ''}</div>
+    <p class="cap">Задачи</p>${tasks}${room ? `<p class="cap">Переписка команды</p>${room}` : ''}</div>`;
+}
+function openMission(mode) {
+  const f = FLOORS[S.floor]; if (!f) return;
+  const title = { goal: 'Цель для этажа ' + f.name, task: 'Задача на доску', room: 'Сообщение команде' }[mode];
+  const kinds = (S.hub.kinds || []).filter(k => k === 'claude' || k === 'codex');
+  S.missionKind = S.missionKind && kinds.includes(S.missionKind) ? S.missionKind : kinds[0];
+  $('hireWrap').innerHTML = `<div class="scrim" data-closehire="1"><form class="card modal hire" id="mForm" role="dialog" aria-modal="true" aria-labelledby="mTitle"><h2 id="mTitle">${esc(title)}</h2>
+    ${mode === 'goal' ? `<p class="muted" style="margin:0">Диспетчер разобьёт цель на задачи и наймёт до трёх исполнителей. Команды в терминале и слияние веток будут просить разрешения здесь.</p><label>Диспетчер</label><div class="opts" role="group" aria-label="Диспетчер">${kinds.map(k => `<button type="button" class="btn ghost" data-mkind="${k}" aria-pressed="${k === S.missionKind}">${KIND_RU[k]}</button>`).join('')}</div>` : ''}
+    <label for="mText">${mode === 'goal' ? 'Что нужно сделать' : mode === 'task' ? 'Задача' : 'Текст'}</label><textarea id="mText" placeholder="${mode === 'goal' ? 'Например: добавь в Пару напоминания за 10 минут до пары, с тестами' : ''}"></textarea>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button type="button" class="btn ghost" data-closehire="1">Отмена</button><button class="btn" type="submit">${mode === 'goal' ? 'Запустить' : 'Отправить'}</button></div></form></div>`;
+  $('mText').focus();
+  $('hireWrap').querySelectorAll('[data-mkind]').forEach(b => b.onclick = () => { S.missionKind = b.dataset.mkind; $('hireWrap').querySelectorAll('[data-mkind]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); });
+  $('mForm').onsubmit = (e) => { e.preventDefault(); const text = $('mText').value.trim(); if (!text) return;
+    api({ goal: '/api/mission', task: '/api/board', room: '/api/room' }[mode], { project: f.name, text, kind: S.missionKind }).then(() => { $('hireWrap').innerHTML = ''; S.tab = 'board'; renderUI(); }).catch(toastErr); };
+}
+function wrapText(g, text, x, y, maxW, lh, lines) {
+  const words = String(text).split(/\s+/); let line = '', n = 0;
+  for (const w of words) { const t = line ? line + ' ' + w : w; if (g.measureText(t).width > maxW && line) { g.fillText(line, x, y + n * lh); if (++n >= lines) return; line = w; } else line = t; }
+  if (line && n < lines) g.fillText(n === lines - 1 && g.measureText(line).width > maxW ? line.slice(0, 18) + '…' : line, x, y + n * lh);
+}
+function drawBoard3D(L) {
+  if (!L.boardTex) return;
+  const b = (S.live && S.hub && S.hub.boards || {})[L.f.name] || { goal: '', tasks: [] };
+  const sig = JSON.stringify([b.goal, b.tasks, L.f.name]); if (sig === L.boardTex.sig) return; L.boardTex.sig = sig;
+  const g = L.boardTex.c.getContext('2d'), w = 512, h = 276;
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#16181c'; g.font = '700 17px Onest, sans-serif'; wrapText(g, b.goal || L.f.name, 12, 24, 488, 18, 1);
+  [['todo', 'План', '#fde68a'], ['doing', 'В работе', '#bfdbfe'], ['review', 'Ревью', '#fbcfe8'], ['done', 'Готово', '#bbf7d0']].forEach(([st, name, color], i) => {
+    const x = 10 + i * 125; g.fillStyle = '#8a909b'; g.font = '600 13px Onest, sans-serif'; g.fillText(name, x, 52);
+    const list = b.tasks.length ? b.tasks.filter(t => t.status === st || (st === 'todo' && t.status === 'blocked')) : (i < 3 ? [{ title: '' }, { title: '' }].slice(0, 2 - (i % 2)) : []);
+    list.slice(0, 4).forEach((t, k) => { const y = 60 + k * 52; g.fillStyle = color; g.fillRect(x, y, 116, 46); g.fillStyle = '#16181c'; g.font = '12px Onest, sans-serif'; if (t.title) wrapText(g, t.title, x + 6, y + 17, 104, 14, 2); });
+  });
+  L.boardTex.t.needsUpdate = true;
+}
+function finishBubble(r, a, base) {
+  const openL = S.open && FLOORS[S.floor] ? FLOORS[S.floor].L : null;
+  const onOpen = openL && FLOORS[a.fi] && FLOORS[a.fi].L === openL, show = onOpen || (!S.open && a.status === 'waiting');
+  r.bub.style.display = show ? '' : 'none';
+  if (show) { v3.set(0, base + 0.9, 0); r.g.localToWorld(v3); v3.project(camera); r.bub.style.left = ((v3.x + 1) / 2 * innerWidth) + 'px'; r.bub.style.top = ((1 - v3.y) / 2 * innerHeight) + 'px'; }
+}
+const smokeMat = new THREE.MeshBasicMaterial({ color: 0x8a8f99, transparent: true, opacity: 0.5, depthWrite: false });
+function smoke(r, on, t) {    // a stuck agent's desk smokes
+  if (!on) { if (r.puffs) r.puffs.visible = false; return; }
+  if (!r.puffs) { r.puffs = new THREE.Group(); for (let i = 0; i < 4; i++) r.puffs.add(new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), smokeMat)); r.g.add(r.puffs); }
+  r.puffs.visible = true;
+  r.puffs.children.forEach((m, i) => { const k = ((t / 1400) + i / 4) % 1; m.position.set(Math.sin(i * 2 + t / 600) * 0.2, 1.4 + k * 1.4, 0.3); m.scale.setScalar(0.6 + k * 1.4); });
+  smokeMat.opacity = 0.45;
+}
+function fameHtml() {
+  const list = ALL().slice().sort((x, y) => (y.xp || 0) - (x.xp || 0)).slice(0, 8);
+  return list.length ? list.map((a, i) => `<div class="fame"><span class="rk">${i + 1}</span>${ava(a)}<div style="min-width:0;flex:1"><div class="nm" style="font-weight:700">${esc(a.name)} <span class="muted" style="font-weight:500;font-size:11px">${a.xp || 0} опыта</span></div><div class="muted" style="font-size:12px">${a.tasks || 0} задач · ${a.steps || 0} шагов${a.errors ? ' · ошибок ' + a.errors : ''}</div>${(a.badges || []).length ? `<div class="bg">${a.badges.map(b => `<span>${esc(b)}</span>`).join('')}</div>` : ''}</div></div>`).join('')
+    : '<p class="muted" style="padding:8px">Пока никого</p>';
+}
+// --- office cat: wanders around the plaza, naps now and then
+const cat = new THREE.Group(); scene.add(cat);
+{ const fur = mat('#f0a35e'), dark = mat('#2b2e34');
+  box(0.7, 0.32, 0.32, fur, 0, 0.36, 0, cat); const head = box(0.3, 0.28, 0.28, fur, 0.42, 0.5, 0, cat);
+  [-0.08, 0.08].forEach(z => { const ear = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.12, 4), fur); ear.position.set(0.42, 0.69, z); cat.add(ear); });
+  [-0.07, 0.07].forEach(z => box(0.03, 0.04, 0.03, dark, 0.575, 0.54, z, cat, { noCast: true }));
+  [[-0.25, -0.1], [-0.25, 0.1], [0.25, -0.1], [0.25, 0.1]].forEach(([x, z]) => box(0.08, 0.22, 0.08, fur, x, 0.11, z, cat));
+  const tail = box(0.06, 0.06, 0.45, fur, -0.38, 0.5, 0, cat); tail.rotation.x = 0.6; cat.userData.tail = tail;
+  cat.position.set(-2, 0.12, 8); cat.userData.goal = new THREE.Vector3(-2, 0.12, 8); cat.userData.nap = 0; }
+function animateCat(t) {
+  const u = cat.userData, d = u.goal.clone().sub(cat.position); d.y = 0;
+  if (u.nap > t) { cat.scale.y = 0.85 + Math.sin(t / 600) * 0.03; return; }
+  cat.scale.y = 1;
+  if (d.length() < 0.1) { if (Math.random() < 0.004) u.nap = t + 6000 + Math.random() * 8000; else u.goal.set(-12 + Math.random() * 20, 0.12, 4 + Math.random() * 10); return; }
+  d.normalize(); cat.position.addScaledVector(d, 0.025); cat.rotation.y = Math.atan2(-d.z, d.x); u.tail.rotation.z = Math.sin(t / 150) * 0.4;
+}
+// --- weather from the hub (Moscow): snow or rain over the island
+const precip = (() => { const n = 1400, g = new THREE.BufferGeometry(), p = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { p[i * 3] = (Math.random() - 0.5) * 70; p[i * 3 + 1] = Math.random() * 30; p[i * 3 + 2] = (Math.random() - 0.5) * 55; }
+  g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  const m = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 0.18, transparent: true, opacity: 0.85, depthWrite: false })); m.visible = false; scene.add(m); return m; })();
+function weatherKind() { const c = S.live && S.hub && S.hub.weather ? S.hub.weather.code : null; if (c == null) return '';
+  return [71, 73, 75, 77, 85, 86].includes(c) ? 'snow' : ((c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95) ? 'rain' : ''; }
+function weatherTick() {
+  const k = weatherKind(); precip.visible = !!k; if (!k) return;
+  precip.material.size = k === 'snow' ? 0.2 : 0.08; precip.material.color.set(k === 'snow' ? '#ffffff' : '#9fc4e8');
+  const p = precip.geometry.attributes.position.array, v = k === 'snow' ? 0.04 : 0.35;
+  for (let i = 0; i < p.length; i += 3) { p[i + 1] -= v; if (k === 'snow') p[i] += Math.sin((p[i + 1] + i) / 3) * 0.01; if (p[i + 1] < 0) p[i + 1] = 30; }
+  precip.geometry.attributes.position.needsUpdate = true;
+}
+// --- sounds (off by default; synthesized, no files)
+let audioCtx = null;
+S.sound = store.get('office-sound') === '1';
+function beep(freq, dur, vol) {
+  if (!S.sound) return;
+  try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.frequency.value = freq; o.type = 'sine'; g.gain.setValueAtTime(vol, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    o.connect(g).connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + dur); } catch (e) {}
+}
+function paintSound() { $('soundBtn').setAttribute('aria-pressed', String(S.sound)); $('soundLbl').textContent = S.sound ? 'Звук вкл' : 'Звук'; $('soundWave').style.display = S.sound ? '' : 'none'; }
+$('soundBtn').onclick = () => { S.sound = !S.sound; store.set('office-sound', S.sound ? '1' : '0'); paintSound(); beep(880, 0.15, 0.06); };
+function soundsFor(prevAgents) {
+  ALL().forEach(a => { const was = prevAgents.get(a.id); if (!was) return;
+    if (a.status === 'waiting' && was !== 'waiting') { beep(988, 0.18, 0.07); setTimeout(() => beep(1319, 0.25, 0.07), 160); }
+    else if (a.status === 'done' && was === 'working') beep(660, 0.12, 0.04); });
+}
+function renderBrief() {
+  const b = S.live && S.hub && S.hub.briefing, el = $('brief');
+  const show = b && b.text && b.day === new Date().toISOString().slice(0, 10) && store.get('office-brief') !== b.day;
+  el.hidden = !show; if (!show) return;
+  el.innerHTML = `<div style="flex:1">${esc(b.text)}</div><button class="chev" data-briefclose="1" aria-label="Скрыть планёрку"><svg width="12" height="12" viewBox="0 0 14 14" stroke="currentColor" stroke-width="2"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>`;
+}
 function renderConnectLive() {
   const it = S.hub.integrations || {}, w = S.hub.settings.approveWait;
   const nt = S.hub.ntfy || {};
@@ -1020,18 +1193,26 @@ function liveDecide(a, decision) {
   api('/api/decide', { id: a.approval, decision }).catch(e => { log('Офис', e.message, 'error'); renderUI(); });
 }
 function applyHub(st) {
+  // the hub serves a new page after a deploy: reload so the window never runs stale code
+  if (st.web && S.web && st.web !== S.web) { location.reload(); return; }
+  S.web = st.web || S.web;
   S.hub = st;
   const projs = st.projects.length ? st.projects : [{ name: 'Холл', color: '#9aa1ad' }];
   const prev = new Map(ALL().map(a => [a.id, a]));
-  const floors = projs.slice().reverse().map(p => ({ name: p.name, color: p.color, agents: [] }));   // newest project on top
+  // Grok bots live in their own annex; a project only they report goes there instead of the tower
+  const grokOnly = new Set(projs.filter(p => { const own = st.agents.filter(h => h.project === p.name); return own.length && own.every(h => h.kind === 'grok'); }).map(p => p.name));
+  const tower = projs.filter(p => !grokOnly.has(p.name));
+  const floors = (tower.length ? tower : [{ name: 'Холл', color: '#9aa1ad' }]).slice().reverse().map(p => ({ name: p.name, color: p.color, agents: [] }));   // newest project on top
+  if (st.agents.some(h => h.kind === 'grok')) floors.push({ name: 'Grok', color: '#3a3d45', annex: true, agents: [] });
   st.agents.forEach(h => {
-    const fi = floors.findIndex(f => f.name === h.project); if (fi < 0) return;
+    const fi = h.kind === 'grok' ? floors.length - 1 : floors.findIndex(f => f.name === h.project); if (fi < 0) return;
     const a = prev.get(h.id) || { id: h.id, seatKind: null, use: 0 };
     a.prevStatus = a.status;
     Object.assign(a, { name: h.name, kind: KIND[h.kind] ? h.kind : 'claude', status: h.status, task: h.task, since: h.since * 1000, steps: h.steps, tasks: h.tasks,
-      events: h.events, hist: h.hist && h.hist.length > 1 ? h.hist : [0, 0], role: h.where, approval: h.approval, fi });
+      events: h.events, xp: h.xp, badges: h.badges, errors: h.errors, managed: h.managed, running: h.running, chatLen: h.chatLen, forkable: h.forkable, hist: h.hist && h.hist.length > 1 ? h.hist : [0, 0], role: h.kind === 'grok' ? 'Grok Bot · команда ' + h.project : h.where, approval: h.approval, fi });
     floors[fi].agents.push(a);
   });
+  soundsFor(new Map([...prev.values()].map(a => [a.id, a.prevStatus])));
   LOG.length = 0; (st.log || []).forEach(l => LOG.push(l));
   const sig = (fl) => fl.map(f => f.name + ':' + f.agents.map(a => a.id).join(',')).join('|');
   if (!LEVELS.length || sig(floors) !== sig(FLOORS)) { FLOORS = floors; rebuild(); }

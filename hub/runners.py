@@ -6,6 +6,7 @@ import json
 import os
 
 HOOK = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'office_hook.py')
+MCP = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'office_mcp.py')
 BIN = {
     'claude': ['/usr/local/bin/claude', os.path.expanduser('~/.local/bin/claude')],
     'codex': ['/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex', '/usr/local/bin/codex'],
@@ -13,7 +14,8 @@ BIN = {
 }
 # Read-only commands an office Claude may run without asking; everything else in Bash asks in the office.
 SAFE_BASH = ['Bash(git status*)', 'Bash(git diff*)', 'Bash(git log*)', 'Bash(git show*)', 'Bash(ls*)', 'Bash(cat*)',
-             'Bash(rg *)', 'Bash(grep *)', 'Bash(pwd)', 'Bash(head *)', 'Bash(tail *)', 'Bash(wc *)']
+             'Bash(rg *)', 'Bash(grep *)', 'Bash(pwd)', 'Bash(head *)', 'Bash(tail *)', 'Bash(wc *)',
+             'Bash(git add *)', 'Bash(git commit *)', 'mcp__office']   # commits stay in the agent's own branch
 
 
 def binary(kind):
@@ -27,22 +29,29 @@ def claude_settings():
         {'type': 'command', 'command': '/usr/bin/python3 %s claude' % HOOK, 'timeout': 900}]}]}})
 
 
-def command(kind, text, sid, new_sid=None, fork=False):
+def command(kind, text, sid, new_sid=None, fork=False, system=''):
     exe = binary(kind)
     if not exe:
         raise RuntimeError('%s не установлен на этом Маке' % kind)
     if kind == 'claude':
         cmd = [exe, '-p', text, '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits',
-               '--setting-sources', 'project,local', '--settings', claude_settings(), '--allowedTools', *SAFE_BASH]
+               '--setting-sources', 'project,local', '--settings', claude_settings(),
+               '--mcp-config', json.dumps({'mcpServers': {'office': {'command': '/usr/bin/python3', 'args': [MCP, 'claude']}}}),
+               '--allowedTools', *SAFE_BASH]
+        if system:
+            cmd += ['--append-system-prompt', system]
         if sid:
             cmd += ['--resume', sid] + (['--fork-session'] if fork else [])
         elif new_sid:
             cmd += ['--session-id', new_sid]
         return cmd
     if kind == 'codex':
+        # approval_policy=never: an office Codex works sandboxed in its own checkout and never stops to ask
+        mcp = ['-c', 'mcp_servers.office.command="/usr/bin/python3"', '-c', 'mcp_servers.office.args=["%s","codex"]' % MCP, '-c', 'mcp_servers.office.default_tools_approval_mode="approve"', '-c', 'approval_policy="never"']
         if sid:
-            return [exe, 'exec', 'resume', sid, '--json', '--skip-git-repo-check', text]
-        return [exe, 'exec', '--json', '--skip-git-repo-check', '--sandbox', 'workspace-write', text]
+            return [exe, 'exec', 'resume', sid, *mcp, '--json', '--skip-git-repo-check', text]
+        first = (system + '\n\n' + text) if system else text     # codex exec has no system-prompt flag
+        return [exe, 'exec', *mcp, '--json', '--skip-git-repo-check', '--sandbox', 'workspace-write', first]
     cmd = [exe, '-p', text, '--output-format', 'stream-json', '--mode', 'accept-edits']
     return cmd + (['--conversation', sid] if sid else [])
 

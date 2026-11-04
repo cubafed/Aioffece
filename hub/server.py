@@ -53,9 +53,14 @@ approvals = {}    # id -> {id, agent, decision, live, event}
 log = []          # newest first: [hh:mm, who, text, status]
 settings = {'approveWait': 60, 'agentProxy': '', 'ntfyOn': False, 'ntfyTopic': '', 'ntfyServer': 'https://ntfy.sh'}
 ntfy_state = {'state': 'off', 'last': None, 'since': '1h'}
+weather = {}      # Moscow, from open-meteo: temp, code, day
+briefing = {}     # morning summary: text, day
 clients = []      # one queue per open SSE stream
 ALIAS = {}        # "src:session" of an office-run CLI session -> its office agent id
 RUNS = {}         # office agent id -> {proc, queue, stopped}
+BROKEN = {}       # kind -> why the last run could not start (e.g. not logged in on this Mac)
+boards = {}       # project -> {goal, status, report, lead, tasks, room, seq, wakes}
+MAX_WAKES = 40    # agents waking each other per mission before the office waits for a human
 dirty = threading.Event()
 
 
@@ -126,6 +131,10 @@ def ensure_project(name):
 
 
 def set_status(a, status, task=None):
+    if a['status'] != status and status == 'error':
+        a['errors'] = a.get('errors', 0) + 1
+    if status == 'working' and time.localtime().tm_hour < 6:
+        a['night'] = True
     if a['status'] != status:
         a['status'] = status
         a['since'] = time.time()
@@ -297,8 +306,10 @@ def start_run(a, text):
         cmd = runners.command('claude', text, None, new_sid)
         link_session(a, new_sid)        # known before start, so its hooks never create a duplicate
     else:
-        cmd = runners.command(a['src'], text, sid, fork=bool(m.get('fork')))
-    env = dict(os.environ, PATH='/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:' + os.path.expanduser('~/.local/bin'))
+        cmd = runners.command(a['src'], text, sid, fork=bool(m.get('fork')), system=m.get('system') or '')
+    if a['src'] == 'claude' and not sid and m.get('system'):
+        cmd += ['--append-system-prompt', m['system']]
+    env = dict(os.environ, OFFICE_AGENT_ID=a['id'], PATH='/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:' + os.path.expanduser('~/.local/bin'))
     if settings.get('agentProxy'):        # e.g. the VPN's local proxy, for CLIs that ignore macOS VPN routing
         for k in ('HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY', 'https_proxy', 'http_proxy', 'all_proxy'):
             env[k] = settings['agentProxy']
@@ -355,6 +366,10 @@ def pump(key, proc):
         a = agents.get(key)
         if not a:
             return
+        if 'Not logged in' in '\n'.join(junk) + ''.join(m['text'] for m in (a.get('chat') or [])[-3:]):
+            BROKEN[a['src']] = 'не залогинен на этом Маке'
+        elif a['status'] == 'done' and rc == 0:
+            BROKEN.pop(a['src'], None)
         if run.get('stopped'):
             set_status(a, 'resting', 'Остановлен')
             chat_add(a, 'sys', 'Остановлен')
@@ -364,6 +379,11 @@ def pump(key, proc):
             add_log(a['name'], 'застрял: процесс упал', 'error')
         elif a['status'] == 'working':
             set_status(a, 'done', 'Готово: ' + (a['prompt'] or 'ответил'))
+        if (a.get('mission') or {}).get('role') == 'worker' and not run.get('stopped'):
+            last = next((m['text'] for m in reversed(a.get('chat') or []) if m['who'] == 'bot'), '')
+            lead = agents.get(a['mission'].get('lead') or '')
+            if lead:
+                deliver(lead, '%s закончил ход (%s). Его ответ: %s' % (a['name'], ST_RU.get(a['status'], a['status']), short(last, 700)), 'Офис')
         queue = run.get('queue') or []
         if queue and a['status'] != 'error' and not run.get('stopped'):
             start_run(a, queue.pop(0))
@@ -382,17 +402,203 @@ def send_to(a, text):
     mark_dirty()
 
 
-def hire(kind, path, task, name=None):
-    proj = project_of(path)
+def make_worktree(root, key):
+    """A separate checkout on its own branch, so agents of one project never edit the same files."""
+    git = lambda *a: subprocess.run(['git', '-C', root, *a], capture_output=True, text=True, timeout=30)
+    if not os.path.isdir(os.path.join(root, '.git')) or git('rev-parse', '--verify', 'HEAD').returncode:
+        return root, None
+    branch = 'office/' + key.split(':')[-1][:8]
+    wt = os.path.join(os.path.dirname(root), '.office-worktrees', os.path.basename(root), key.split(':')[-1][:8])
+    r = git('worktree', 'add', '-b', branch, wt)
+    return (wt, branch) if r.returncode == 0 else (root, None)
+
+
+def hire(kind, path, task, name=None, project=None, system='', mission=None, worktree=False):
+    proj = project or project_of(path)
     key = 'office:' + uuid.uuid4().hex[:12]
-    a = new_agent(key, kind, key, {'project': proj, 'cwd': path, 'host': 'офис'}, name)
-    a['managed'] = {'path': path}
+    work, branch = make_worktree(root_of(path), key) if worktree else (path, None)
+    a = new_agent(key, kind, key, {'project': proj, 'cwd': work, 'host': 'офис'}, name)
+    a['managed'] = {'path': work, 'system': system, 'branch': branch}
+    if mission:
+        a['mission'] = mission
     a['task'] = 'Ждёт задачу'
-    projects[proj]['path'] = root_of(path)
+    if not project:
+        projects[proj]['path'] = root_of(path)
     if task:
         send_to(a, task)
     mark_dirty()
     return a
+
+
+# ---------- missions: a floor works on one goal together ----------
+
+ST_RU = {'working': 'работает', 'waiting': 'ждёт', 'done': 'готово', 'resting': 'отдыхает', 'error': 'ошибка'}
+TASK_STATUSES = ('todo', 'doing', 'review', 'done', 'blocked')
+
+LEAD_PROMPT = '''Ты — Диспетчер этажа «{proj}» в ИИ-Офисе. Цель команды: {goal}
+
+У тебя есть инструменты office_* (MCP-сервер office). Порядок работы:
+1. Изучи репозиторий и разбей цель на 2–6 конкретных задач (office_add_task).
+2. Найми исполнителей через office_hire: kind="claude" для реализации, kind="codex" для тестов и ревью. Не больше трёх исполнителей. Каждый работает в своей git-ветке и сам напишет тебе, когда закончит.
+3. Следи за доской (office_board) и сообщениями (office_inbox), отвечай через office_send.
+4. Задачи в статусе review проверяй (git log, git diff по ветке исполнителя). Хорошие сливай в основную ветку (git merge), остальные возвращай с замечаниями.
+5. Когда цель достигнута, отчитайся через office_report. Ничего не пушь в удалённый репозиторий без просьбы человека.
+Отвечай по-русски, коротко.'''
+
+WORKER_PROMPT = '''Ты — {name}, исполнитель на этаже «{proj}» в ИИ-Офисе. Работаешь в своей копии репозитория{branch}. Руководитель — {lead}.
+Инструменты office_*: office_board (доска), office_take_task и office_update_task (статусы задач), office_send (написать руководителю или коллеге), office_inbox.
+Когда закончишь: закоммить изменения в свою ветку и поставь задаче статус review. Не сливай ветки и не пушь в удалённый репозиторий. Отвечай по-русски, коротко.'''
+
+
+def board_of(proj):
+    return boards.setdefault(proj, {'goal': '', 'status': '', 'report': '', 'lead': None, 'tasks': [], 'room': [], 'seq': 0, 'wakes': 0})
+
+
+def room_add(b, frm, to, text):
+    b['room'].append({'from': frm, 'to': to, 'text': short(text, 2000), 't': hhmm(), 'read': []})
+    del b['room'][:-200]
+
+
+def deliver(t, text, sender):
+    """Wake an office agent with a message from a colleague (queued if it is busy)."""
+    if not t.get('managed'):
+        return
+    b = board_of(t['project'])
+    b['wakes'] += 1
+    if b['wakes'] > MAX_WAKES:
+        if b['wakes'] == MAX_WAKES + 1:
+            room_add(b, 'Офис', 'человек', 'Агенты будили друг друга %d раз. Жду тебя: напиши команде, чтобы продолжить.' % MAX_WAKES)
+            add_log('Офис', 'этаж %s ждёт человека' % t['project'], 'waiting')
+        return
+    msg = '[%s пишет тебе в ИИ-Офисе]: %s' % (sender, text)
+    chat_add(t, 'peer', '%s: %s' % (sender, text))
+    run = RUNS.get(t['id'])
+    if run and run['proc'].poll() is None:
+        run['queue'].append(msg)
+    else:
+        start_run(t, msg)
+
+
+def find_agent(proj, name):
+    name = (name or '').strip().lower()
+    return next((x for x in agents.values() if x['project'] == proj and x['name'].lower() in (name, name.replace('@', ''))), None) or \
+        next((x for x in agents.values() if x['project'] == proj and name and name in x['name'].lower()), None)
+
+
+def who_called(body):
+    a = agents.get(str(body.get('agent') or ''))
+    if a:
+        return a
+    proj, src = project_of(str(body.get('cwd') or os.path.expanduser('~'))), body.get('src')
+    cands = sorted((x for x in agents.values() if x['project'] == proj and x['src'] == src), key=lambda x: -x['last'])
+    return cands[0] if cands else None
+
+
+def mcp_call(body):
+    a = who_called(body)
+    if not a:
+        return 'Не нашёл тебя в ИИ-Офисе: открой сессию в папке проекта.', True
+    proj, me, args, tool = a['project'], a['name'], body.get('args') or {}, body.get('tool')
+    b = board_of(proj)
+    task_by = lambda i: next((t for t in b['tasks'] if str(t['id']) == str(i).lstrip('#')), None)
+    if tool == 'office_team':
+        rows = ['%s (%s) — %s: %s' % (x['name'], NAMES.get(x['src'], x['src']), ST_RU.get(x['status'], x['status']), x['task'])
+                for x in agents.values() if x['project'] == proj]
+        return 'Этаж %s:\n%s' % (proj, '\n'.join(rows)), False
+    if tool == 'office_board':
+        rows = ['#%s [%s] %s — %s%s' % (t['id'], t['status'], t['title'], t['owner'] or 'никто', (' · ' + t['note']) if t.get('note') else '') for t in b['tasks']]
+        return 'Цель: %s\n%s' % (b['goal'] or 'не задана', '\n'.join(rows) or 'Задач пока нет'), False
+    if tool == 'office_add_task':
+        title = short(args.get('title'), 140)
+        if not title:
+            return 'Нужен title', True
+        b['seq'] += 1
+        t = {'id': b['seq'], 'title': title, 'details': short(args.get('details'), 1000), 'status': 'todo', 'owner': short(args.get('assignee'), 60), 'note': '', 'by': me}
+        b['tasks'].append(t)
+        add_log(me, 'добавил задачу #%d: %s' % (t['id'], title), 'working')
+        return 'Задача #%d добавлена' % t['id'], False
+    if tool == 'office_take_task':
+        t = task_by(args.get('id'))
+        if not t:
+            return 'Нет задачи %s' % args.get('id'), True
+        t.update(owner=me, status='doing')
+        return 'Задача #%s теперь твоя' % t['id'], False
+    if tool == 'office_update_task':
+        t, st = task_by(args.get('id')), str(args.get('status') or '').lower()
+        if not t or st not in TASK_STATUSES:
+            return 'Нужны существующий id и статус из: %s' % ', '.join(TASK_STATUSES), True
+        t.update(status=st, note=short(args.get('note'), 300) or t.get('note', ''))
+        add_log(me, 'задача #%s → %s' % (t['id'], st), 'done' if st == 'done' else 'working')
+        return 'Готово', False
+    if tool == 'office_send':
+        to, text = str(args.get('to') or '').strip(), str(args.get('text') or '').strip()
+        if not to or not text:
+            return 'Нужны to и text', True
+        a['msgs'] = a.get('msgs', 0) + 1
+        if to.lower() in ('человек', 'ты', 'user', 'владелец', 'human'):
+            room_add(b, me, 'человек', text)
+            add_log(me, 'пишет тебе: ' + short(text, 60), 'waiting')
+            return 'Сообщение человеку оставлено в офисе', False
+        targets = [x for x in agents.values() if x['project'] == proj and x is not a and x.get('managed')] if to.lower() in ('all', 'все', 'всем') else [find_agent(proj, to)]
+        targets = [x for x in targets if x]
+        if not targets:
+            return 'Не нашёл «%s» на этаже. office_team покажет, кто здесь.' % to, True
+        room_add(b, me, to, text)
+        for x in targets:
+            deliver(x, text, me)
+        return 'Отправлено: %s' % ', '.join(x['name'] for x in targets), False
+    if tool == 'office_inbox':
+        mine = [m for m in b['room'] if m['from'] != me and me not in m['read'] and (m['to'] in (me, 'all', 'все', 'всем') or m['to'].lower() in me.lower())]
+        for m in mine:
+            m['read'].append(me)
+        return '\n'.join('%s %s: %s' % (m['t'], m['from'], m['text']) for m in mine) or 'Новых сообщений нет', False
+    if tool == 'office_hire':
+        kind = str(args.get('kind') or 'claude').lower()
+        if kind not in ('claude', 'codex') or not runners.binary(kind):
+            return 'kind должен быть claude или codex (и стоять на Маке)', True
+        if kind in BROKEN:
+            other = 'codex' if kind == 'claude' else 'claude'
+            return '%s сейчас недоступен: %s. Найми kind="%s".' % (kind, BROKEN[kind], other), True
+        busy = sum(1 for x in agents.values() if x['project'] == proj and x.get('mission') and x['mission'].get('role') == 'worker')
+        if busy >= 4:
+            return 'На этаже уже 4 исполнителя: дай задачу им или отпусти кого-то', True
+        lead = b['lead'] if b['lead'] in agents else a['id']
+        path = (projects.get(proj) or {}).get('path')
+        if not path:
+            return 'Не знаю папку проекта %s' % proj, True
+        nm = short(args.get('name'), 40) or '%s·%s %d' % (NAMES[kind], proj, busy + 1)
+        w = hire(kind, path, '', name=nm, project=proj, mission={'role': 'worker', 'lead': lead}, worktree=True)
+        w['managed']['system'] = WORKER_PROMPT.format(name=nm, proj=proj, lead=agents[lead]['name'],
+                                                      branch=(' (ветка %s)' % w['managed']['branch']) if w['managed'].get('branch') else '')
+        send_to(w, str(args.get('task') or 'Посмотри доску office_board и возьми задачу.'))
+        add_log(me, 'нанял %s' % nm, 'working')
+        return 'Нанят %s%s. Он напишет, когда закончит.' % (nm, (' в ветке ' + w['managed']['branch']) if w['managed'].get('branch') else ''), False
+    if tool == 'office_report':
+        b.update(status='done', report=short(args.get('text'), 3000))
+        room_add(b, me, 'человек', 'Отчёт: ' + b['report'])
+        add_log(me, 'отчитался по цели этажа %s' % proj, 'done')
+        return 'Отчёт сохранён', False
+    return 'Неизвестный инструмент %s' % tool, True
+
+
+def start_mission(proj, goal, kind='claude'):
+    path = (projects.get(proj) or {}).get('path')
+    if not path or not os.path.isdir(path):
+        raise RuntimeError('у этажа %s нет папки на этом Маке' % proj)
+    b = board_of(proj)
+    b.update(goal=short(goal, 1000), status='active', report='', wakes=0)
+    lead = agents.get(b['lead'] or '')
+    if lead and lead.get('managed'):
+        deliver(lead, 'Новая цель команды: ' + goal, 'Ты')
+        return lead
+    if kind not in ('claude', 'codex') or not runners.binary(kind):
+        raise RuntimeError('Диспетчером может быть claude или codex')
+    lead = hire(kind, path, '', name='Диспетчер·' + proj, project=proj, mission={'role': 'lead'},
+                system=LEAD_PROMPT.format(proj=proj, goal=goal))
+    b['lead'] = lead['id']
+    send_to(lead, 'Цель: %s\nНачни: разбей на задачи и найми исполнителей.' % goal)
+    add_log('Ты', 'поставил цель этажу %s' % proj, 'working')
+    return lead
 
 
 def scan_dirs():
@@ -503,6 +709,56 @@ def ntfy_loop():
             time.sleep(10)
 
 
+def badges(a):
+    out = []
+    if a.get('night'):
+        out.append('Ночная смена')
+    if a['steps'] >= 100:
+        out.append('Сотня шагов')
+    if a['tasks'] >= 5 and not a.get('errors'):
+        out.append('Без единой ошибки')
+    if a.get('msgs', 0) >= 3:
+        out.append('Командный игрок')
+    if (a.get('mission') or {}).get('role') == 'lead':
+        out.append('Диспетчер')
+    return out
+
+
+WEATHER_URL = 'https://api.open-meteo.com/v1/forecast?latitude=55.7558&longitude=37.6173&current=temperature_2m,weather_code,is_day'
+
+
+def weather_loop():
+    while True:
+        try:
+            with urllib.request.urlopen(urllib.request.Request(WEATHER_URL, headers={'User-Agent': 'ai-office-hub'}), timeout=20) as r:
+                cur = json.loads(r.read()).get('current') or {}
+            weather.update(temp=cur.get('temperature_2m'), code=cur.get('weather_code'), day=bool(cur.get('is_day')), at=time.time())
+            mark_dirty()
+        except Exception as e:   # offline or VPN down: keep the last value
+            print('weather failed:', e, flush=True)
+        time.sleep(1800)
+
+
+def make_briefing():
+    """Morning stand-up: what everyone did since the previous one."""
+    rows, total_tasks, total_steps, errors = [], 0, 0, 0
+    for a in agents.values():
+        dt, ds, de = a['tasks'] - a.get('bTasks', 0), a['steps'] - a.get('bSteps', 0), a.get('errors', 0) - a.get('bErrors', 0)
+        a.update(bTasks=a['tasks'], bSteps=a['steps'], bErrors=a.get('errors', 0))
+        total_tasks, total_steps, errors = total_tasks + dt, total_steps + ds, errors + de
+        if dt or ds:
+            rows.append((dt, ds, a['name']))
+    rows.sort(reverse=True)
+    waiting = [a['name'] for a in agents.values() if a['status'] == 'waiting']
+    if not rows:
+        text = 'Планёрка: за сутки в офисе было тихо. Агентов на этажах: %d.' % len(agents)
+    else:
+        text = 'Планёрка: за сутки %d агентов взяли %d задач и сделали %d шагов. Больше всех — %s (%d задач). Ошибок: %d.%s' % (
+            len(rows), total_tasks, total_steps, rows[0][2], rows[0][0], errors, (' Ждут тебя: ' + ', '.join(waiting) + '.') if waiting else '')
+    briefing.update(text=text, day=time.strftime('%Y-%m-%d'))
+    add_log('Офис', text, 'done')
+
+
 _integr = {'at': 0, 'val': {}}
 
 
@@ -533,20 +789,26 @@ def snapshot():
                         'approval': ap['id'] if ap and ap['live'] and not ap['decision'] else None,
                         'where': (a['host'] + ' · ' if a['host'] else '') + a['cwd'].replace(os.path.expanduser('~'), '~'),
                         'managed': bool(a.get('managed')), 'running': a['id'] in RUNS, 'chatLen': len(a.get('chat') or []),
-                        'forkable': a['src'] == 'claude' and not a.get('managed') and a.get('host') == LOCAL_HOST})
+                        'forkable': a['src'] == 'claude' and not a.get('managed') and a.get('host') == LOCAL_HOST,
+                        'xp': a['tasks'] * 10 + a['steps'], 'badges': badges(a), 'errors': a.get('errors', 0)})
         pub.sort(key=lambda x: x['name'])
         ntfy = {'on': settings['ntfyOn'], 'state': ntfy_state['state'], 'last': ntfy_state['last'],
                 'url': settings['ntfyServer'].rstrip('/') + '/' + settings['ntfyTopic'] if settings['ntfyTopic'] else ''}
         return {'now': time.time(), 'viewers': len(clients), 'settings': {'approveWait': settings['approveWait'], 'agentProxy': settings['agentProxy']},
                 'integrations': integrations(), 'ntfy': ntfy,
                 'projects': [{'name': p['name'], 'color': p['color'], 'path': p.get('path') or ''} for p in projs],
-                'agents': pub, 'log': log[:40], 'limits': cached_limits(),
-                'kinds': [k for k in KINDS if runners.binary(k)]}
+                'agents': pub, 'log': log[:40], 'limits': cached_limits(), 'weather': weather, 'briefing': briefing,
+                'boards': {k: {'goal': v['goal'], 'status': v['status'], 'report': v['report'], 'lead': v['lead'],
+                               'tasks': [{x: t[x] for x in ('id', 'title', 'status', 'owner', 'note')} for t in v['tasks']],
+                               'room': [{x: m[x] for x in ('from', 'to', 'text', 't')} for m in v['room'][-20:]]}
+                           for k, v in boards.items() if k in {p['name'] for p in projs}},
+                'kinds': [k for k in KINDS if runners.binary(k) and k not in BROKEN], 'broken': BROKEN,
+                'web': int(os.path.getmtime(os.path.join(WEB, 'index.html')))}
 
 
 def save():
     with lock:
-        data = {'agents': agents, 'projects': projects, 'log': log, 'settings': settings}
+        data = {'agents': agents, 'projects': projects, 'log': log, 'settings': settings, 'boards': boards, 'briefing': briefing}
         txt = json.dumps(data, ensure_ascii=False)
     os.makedirs(DATA, exist_ok=True)
     tmp = STATE_FILE + '.tmp'
@@ -565,6 +827,8 @@ def load():
     projects.update(data.get('projects', {}))
     log.extend(data.get('log', []))
     settings.update(data.get('settings', {}))
+    boards.update(data.get('boards', {}))
+    briefing.update(data.get('briefing', {}))
     for a in agents.values():
         a['approval'] = None          # held hook calls do not survive a restart
         if a['status'] == 'waiting' or (a.get('managed') and a['status'] == 'working'):
@@ -597,6 +861,9 @@ def janitor():
         time.sleep(30)
         now = time.time()
         with lock:
+            if time.localtime().tm_hour >= 9 and settings.get('briefDay') != time.strftime('%Y-%m-%d'):
+                settings['briefDay'] = time.strftime('%Y-%m-%d')
+                make_briefing()
             if now - last_roll >= HIST_STEP:
                 last_roll = now
                 for a in agents.values():
@@ -741,6 +1008,33 @@ class Handler(BaseHTTPRequestHandler):
                     ntfy_state['since'] = '1h'
             mark_dirty()
             return self._json(200, {'ok': True})
+        if url.path == '/api/mcp':
+            with lock:
+                text, err = mcp_call(body)
+                mark_dirty()
+            return self._json(200, {'text': text, 'error': err})
+        if url.path in ('/api/mission', '/api/board', '/api/room'):
+            proj, text = str(body.get('project') or ''), str(body.get('text') or '').strip()[:2000]
+            if not proj or not text:
+                return self._json(400, {'error': 'нужны этаж и текст'})
+            try:
+                with lock:
+                    b = board_of(proj)
+                    if url.path == '/api/mission':
+                        start_mission(proj, text, str(body.get('kind') or 'claude'))
+                    elif url.path == '/api/board':
+                        b['seq'] += 1
+                        b['tasks'].append({'id': b['seq'], 'title': short(text, 140), 'details': '', 'status': 'todo', 'owner': '', 'note': '', 'by': 'Ты'})
+                    else:
+                        room_add(b, 'Ты', 'all', text)
+                        b['wakes'] = 0                    # a human message lets the team run again
+                        lead = agents.get(b['lead'] or '')
+                        if lead:
+                            deliver(lead, text, 'Ты')
+                    mark_dirty()
+            except (RuntimeError, OSError) as e:
+                return self._json(400, {'error': str(e)})
+            return self._json(200, {'ok': True})
         if url.path in ('/api/hire', '/api/send', '/api/stop', '/api/fork'):
             return self._office_run(url.path, body)
         if url.path == '/api/forget':
@@ -800,6 +1094,7 @@ def main():
     threading.Thread(target=broadcaster, daemon=True).start()
     threading.Thread(target=janitor, daemon=True).start()
     threading.Thread(target=ntfy_loop, daemon=True).start()
+    threading.Thread(target=weather_loop, daemon=True).start()
     srv = ThreadingHTTPServer((HOST, PORT), Handler)
     srv.daemon_threads = True
     print('ИИ-Офис hub on http://%s:%d' % (HOST, PORT), flush=True)
