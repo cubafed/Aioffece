@@ -1420,8 +1420,8 @@ class Handler(BaseHTTPRequestHandler):
             if not host or host == LOCAL_HOST:
                 return self._json(400, {'error': 'bad host'})
             with lock:
+                fresh = host in REMOTE and not runner_online(host)    # back after a real gap, not just the hub restarting
                 rn = REMOTE.setdefault(host, {'jobs': queue.Queue()})
-                fresh = not runner_online(host)
                 rn.update(last=time.time(), kinds=[k for k in body.get('kinds') or [] if k in KINDS], dirs=(body.get('dirs') or [])[:80])
                 if isinstance(body.get('usage'), dict):
                     rn['usage'] = body['usage']
