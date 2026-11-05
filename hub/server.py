@@ -144,9 +144,70 @@ def hhmm(ts=None):
     return time.strftime('%H:%M', time.localtime(ts or time.time()))
 
 
-def add_log(who, text, status):
+JOURNAL = []      # log lines waiting to be appended to data/journal/<day>.jsonl on the next save
+
+
+def add_log(who, text, status, project=''):
     log.insert(0, [hhmm(), who, short(text, 120), status])
     del log[60:]
+    proj = project or next((a['project'] for a in agents.values() if a['name'] == who), '')
+    JOURNAL.append({'t': time.time(), 'who': who, 'text': short(text, 300), 'status': status, 'project': proj})
+
+
+def seed_journal():
+    """First run: today's journal starts from the activity feed the hub already has."""
+    path = os.path.join(DATA, 'journal', time.strftime('%Y-%m-%d') + '.jsonl')
+    if os.path.exists(path):
+        return
+    now, day0 = time.localtime(), time.mktime(time.strptime(time.strftime('%Y-%m-%d'), '%Y-%m-%d'))
+    for hm, who, text, status in reversed(log):
+        try:
+            h, m = map(int, hm.split(':'))
+        except ValueError:
+            continue
+        if (h, m) <= (now.tm_hour, now.tm_min):
+            proj = next((a['project'] for a in agents.values() if a['name'] == who), '')
+            JOURNAL.append({'t': day0 + h * 3600 + m * 60, 'who': who, 'text': text, 'status': status, 'project': proj})
+
+
+def digest(day):
+    """One day of the office from the journal: per project what was started, finished, stuck, asked and merged."""
+    path = os.path.join(DATA, 'journal', day + '.jsonl')
+    rows = []
+    if os.path.exists(path):
+        with open(path, encoding='utf-8') as f:
+            for line in f:
+                try:
+                    rows.append(json.loads(line))
+                except ValueError:
+                    pass
+    with lock:
+        rows += [r for r in JOURNAL if time.strftime('%Y-%m-%d', time.localtime(r['t'])) == day]
+    out, hours = {}, [0] * 24
+    for r in rows:
+        proj = r.get('project') or ''
+        txt, who = r.get('text') or '', r.get('who') or ''
+        m = re.search(r'(?:этаж[ау]?|цель этажу|ветку \S+ на этаже)\s+(\S+)', txt) if not proj else None
+        proj = proj or (m.group(1) if m else 'Офис')
+        p = out.setdefault(proj, {'started': [], 'done': 0, 'stuck': [], 'asked': 0, 'merged': [], 'goals': [], 'agents': set()})
+        if who not in ('Ты', 'Офис'):
+            p['agents'].add(who)
+        if txt.startswith('новая задача: '):
+            p['started'].append({'who': who, 'text': txt[14:], 't': r['t']})
+            hours[time.localtime(r['t']).tm_hour] += 1
+        elif txt.startswith('закончил') or txt.startswith('Готово'):
+            p['done'] += 1
+        elif txt.startswith('застрял'):
+            p['stuck'].append({'who': who, 'text': txt, 't': r['t']})
+        elif txt.startswith('ждёт разрешения'):
+            p['asked'] += 1
+        elif 'слил' in txt or 'слита' in txt:
+            p['merged'].append(txt)
+        elif 'цель' in txt:
+            p['goals'].append(txt)
+    for p in out.values():
+        p['agents'] = sorted(p['agents'])
+    return {'day': day, 'projects': out, 'hours': hours}
 
 
 def chat_add(a, who, text):
@@ -808,7 +869,7 @@ def merge_branch(proj, branch):
             if t['owner'] == w['name'] and t['status'] in ('review', 'doing'):
                 t['status'] = 'done'
     room_add(b, 'Ты', 'all', 'Слил ветку %s в %s' % (branch, info['base']))
-    add_log('Ты', 'слил ветку %s' % branch, 'done')
+    add_log('Ты', 'слил ветку %s' % branch, 'done', proj)
     lead = agents.get(b['lead'] or '')
     if lead and lead is not w:
         deliver(lead, 'Человек слил ветку %s (%s) в %s.' % (branch, w['name'] if w else '?', info['base']), 'Ты')
@@ -1089,7 +1150,11 @@ def save():
     with lock:
         data = {'agents': agents, 'projects': projects, 'log': log, 'settings': settings, 'boards': boards, 'briefing': briefing, 'broken': BROKEN}
         txt = json.dumps(data, ensure_ascii=False)
-    os.makedirs(DATA, exist_ok=True)
+        lines, JOURNAL[:] = list(JOURNAL), []
+    os.makedirs(os.path.join(DATA, 'journal'), exist_ok=True)
+    for r in lines:
+        with open(os.path.join(DATA, 'journal', time.strftime('%Y-%m-%d', time.localtime(r['t'])) + '.jsonl'), 'a', encoding='utf-8') as f:
+            f.write(json.dumps(r, ensure_ascii=False) + '\n')
     tmp = STATE_FILE + '.tmp'
     with open(tmp, 'w', encoding='utf-8') as f:
         f.write(txt)
@@ -1212,6 +1277,21 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json(200, review((q.get('project') or [''])[0], (q.get('branch') or [''])[0]))
             except (RuntimeError, OSError, subprocess.SubprocessError) as e:
                 return self._json(400, {'error': str(e)})
+        if path == '/api/digest':
+            day = (parse_qs(urlparse(self.path).query).get('day') or [time.strftime('%Y-%m-%d')])[0]
+            if not re.match(r'^\d{4}-\d{2}-\d{2}$', day):
+                return self._json(400, {'error': 'день в формате ГГГГ-ММ-ДД'})
+            d = digest(day)
+            try:
+                tok = usage.scan_day(day)
+            except Exception:
+                tok = {}
+            with lock:
+                for rn in REMOTE.values():
+                    for k, n in ((rn.get('usage') or {}).get('days', {}).get(day) or {}).items():
+                        tok[k] = tok.get(k, 0) + n
+            d['tokens'] = tok
+            return self._json(200, d)
         if path == '/api/usage':
             if time.time() - _usage['at'] > 300:
                 try:
@@ -1531,6 +1611,7 @@ Handler._office_run = _office_run
 
 def main():
     load()
+    seed_journal()
     threading.Thread(target=broadcaster, daemon=True).start()
     threading.Thread(target=janitor, daemon=True).start()
     threading.Thread(target=ntfy_loop, daemon=True).start()

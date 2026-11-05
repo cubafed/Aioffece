@@ -99,6 +99,22 @@ body.pult .ctl{display:none!important}
 #pult .search{flex:1;max-width:340px;border:0;background:var(--panel-strong);border-radius:10px;padding:0 12px;font:inherit;font-size:13px;color:var(--ink);min-height:34px;box-shadow:var(--glass)}
 #pult .keys{font-size:11.5px;color:var(--muted);margin-left:auto}
 #pult .keys kbd{font:inherit;font-size:11px;padding:1px 5px;border-radius:5px;background:var(--chip);box-shadow:inset 0 -1px 0 var(--line)}
+.dg .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:12px 0}
+.dg .kpi{background:var(--chip);border-radius:12px;padding:10px 12px}
+.dg .kpi b{display:block;font-size:24px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.dg .kpi span{font-size:12px;color:var(--muted)}
+.dg .hours{display:flex;align-items:flex-end;gap:3px;height:56px;margin:4px 0 2px}
+.dg .hours i{flex:1;background:var(--done);border-radius:3px 3px 0 0;min-height:2px;opacity:.85}
+.dg .hl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.dg .pj{border-top:1px solid var(--line);padding:12px 0}
+.dg .pj h3{margin:0 0 6px;font-size:15px;display:flex;gap:8px;align-items:baseline}
+.dg .pj h3 small{font-weight:500;color:var(--muted);font-size:12px}
+.dg .pj ul{margin:4px 0 0;padding:0;list-style:none;display:grid;gap:3px}
+.dg .pj li{font-size:12.5px;display:flex;gap:8px}
+.dg .pj li time{color:var(--muted);font-variant-numeric:tabular-nums;flex:none}
+.dg .pj li.bad{color:var(--err)}
+.dg nav{display:flex;align-items:center;gap:8px}
+@media (max-width:700px){.dg .kpis{grid-template-columns:repeat(2,1fr)}}
 .ar.waiting{background:linear-gradient(90deg,rgba(240,160,32,.14),transparent 70%)}
 .ar.error{background:linear-gradient(90deg,rgba(229,72,77,.12),transparent 70%)}
 .goalf{display:flex;gap:6px;padding:10px 14px;border-top:1px solid var(--line)}
@@ -464,7 +480,7 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
 </div>
 
 <div class="card" id="caption" hidden aria-live="polite"><b></b><span></span></div>
-<div id="pult" hidden><div class="bar" style="margin-bottom:8px"><h1>Пульт</h1><input class="search" id="pultQ" placeholder="Поиск по агентам, задачам, ответам…" autocomplete="off" aria-label="Поиск в пульте"></div><div id="pultBody"></div></div>
+<div id="pult" hidden><div class="bar" style="margin-bottom:8px"><h1>Пульт</h1><input class="search" id="pultQ" placeholder="Поиск по агентам, задачам, ответам…" autocomplete="off" aria-label="Поиск в пульте"><button class="btn ghost" id="digestBtn" style="min-height:34px">Итоги дня</button></div><div id="pultBody"></div></div>
 <div id="chatWrap"></div>
 <div id="palWrap"></div>
 <div id="connectWrap"></div>
@@ -1176,6 +1192,34 @@ $('pult').addEventListener('click', (e) => { const c = e.target.closest('[data-p
   const cm = e.target.closest('[data-cancelmis]'); if (cm) { e.stopPropagation(); api('/api/mission', { project: cm.dataset.cancelmis, cancel: true }).then(() => log('Ты', 'отменил миссию: ' + cm.dataset.cancelmis, 'resting')).catch(toastErr); return; }
   const r = e.target.closest('[data-rfi]'); if (r) S.floor = +r.dataset.rfi;   // openReview reads the current floor
   if (e.target.closest('[data-pultfloor]')) setPult(false); }, true);
+// ---- Итоги дня: what the office did, per project, from the hub's day journal
+const hm = (t) => new Date(t * 1000).toTimeString().slice(0, 5);
+function dayStr(d) { const z = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()); }
+function openDigest(day) {
+  S.dgDay = day || dayStr(new Date());
+  $('hireWrap').innerHTML = '<div class="scrim" data-closehire="1"><div class="card modal wide"><p class="muted">Собираю итоги…</p></div></div>';
+  api('/api/digest?day=' + S.dgDay).then(renderDigest).catch(toastErr);
+}
+function renderDigest(d) {
+  const ps = Object.entries(d.projects).filter(([n]) => n !== 'Офис' || d.projects[n].started.length);
+  const sum = (f) => ps.reduce((x, [, p]) => x + f(p), 0), tokAll = Object.values(d.tokens || {}).reduce((a, b) => a + b, 0);
+  const max = Math.max(1, ...d.hours), date = new Date(d.day + 'T12:00:00');
+  const shift = (n) => { const x = new Date(date); x.setDate(x.getDate() + n); return dayStr(x); };
+  const isToday = d.day === dayStr(new Date());
+  const kpi = (n, l) => `<div class="kpi"><b>${n}</b><span>${l}</span></div>`;
+  const proj = ps.sort((a, b) => b[1].started.length - a[1].started.length).map(([name, p]) => `<div class="pj"><h3>${esc(name)} <small>${p.agents.length ? esc(p.agents.join(', ')) : ''}${d.tokens && d.tokens[name] ? ' · ' + fmtTok(d.tokens[name]) + ' токенов' : ''}</small></h3>
+    <div class="muted" style="font-size:12px">начато ${p.started.length} · закончено ${p.done} · разрешений ${p.asked}${p.stuck.length ? ' · застревали ' + p.stuck.length : ''}</div>
+    <ul>${p.goals.map(g => `<li><time>цель</time><span>${esc(g)}</span></li>`).join('')}${p.started.slice(-8).reverse().map(x => `<li><time>${hm(x.t)}</time><span><b>${esc(x.who)}</b> ${esc(x.text)}</span></li>`).join('')}
+    ${p.stuck.slice(-3).map(x => `<li class="bad"><time>${hm(x.t)}</time><span>${esc(x.who)}: ${esc(x.text)}</span></li>`).join('')}${p.merged.map(m => `<li><time>git</time><span>${esc(m)}</span></li>`).join('')}</ul></div>`).join('');
+  $('hireWrap').innerHTML = `<div class="scrim" data-closehire="1"><div class="card modal wide dg" role="dialog" aria-modal="true" aria-labelledby="dgT">
+    <div style="display:flex;align-items:center;gap:10px"><h2 id="dgT" style="flex:1;margin:0">Итоги дня · ${date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'short' })}</h2>
+      <nav><button class="btn ghost" data-dg="${shift(-1)}" aria-label="Предыдущий день">←</button>${isToday ? '' : `<button class="btn ghost" data-dg="${shift(1)}" aria-label="Следующий день">→</button>`}<button class="btn ghost" data-closehire="1">Закрыть</button></nav></div>
+    <div class="kpis">${kpi(sum(p => p.started.length), 'задач начато')}${kpi(sum(p => p.done), 'закончено')}${kpi(sum(p => p.stuck.length), 'застревали')}${kpi(sum(p => p.asked), 'разрешений')}${kpi(tokAll ? fmtTok(tokAll) : '—', 'токенов')}</div>
+    <div class="hours" aria-label="Задачи по часам">${d.hours.map((n, h) => `<i style="height:${Math.round(n / max * 100)}%" title="${h}:00 — ${n}"></i>`).join('')}</div><div class="hl"><span>0:00</span><span>6:00</span><span>12:00</span><span>18:00</span><span>23:00</span></div>
+    <div style="max-height:52vh;overflow:auto;margin-top:8px">${proj || '<p class="muted">За этот день журнал пуст: офис начал вести его 5 ноября.</p>'}</div></div></div>`;
+}
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-dg]'); if (b) openDigest(b.dataset.dg); });
+$('digestBtn').onclick = () => openDigest();
 $('pultQ').addEventListener('input', (e) => { S.pq = e.target.value; renderPult(); });
 // keyboard: J/K pick an agent, A/D answer its permission request, R jumps to its reply box, Enter opens the chat
 function pultOrder() { return [...$('pultBody').querySelectorAll('[data-ar]')].map(n => n.dataset.ar); }
@@ -2098,7 +2142,7 @@ function palCommands() {
   Object.entries(SKINS).forEach(([k, sk]) => cmds.push({ k: 'Скин', t: sk.name, sub: S.skin === k ? 'сейчас' : '', run: () => setSkin(k) }));
   cmds.push({ k: 'Вид', t: S.dark ? 'Светлая тема' : 'Тёмная тема', run: () => $('darkBtn').click() }, { k: 'Вид', t: 'Миниатюра вкл/выкл', run: () => $('miniBtn').click() },
     { k: 'Вид', t: 'Кино-тур', run: () => startTour() }, { k: 'Вид', t: S.sound ? 'Выключить звук' : 'Включить звук', run: () => $('soundBtn').click() },
-    { k: 'Офис', t: 'Подключить ИИ', run: () => renderConnect() }, { k: 'Режим', t: S.pult ? 'Офис (3D)' : 'Пульт', run: () => setPult(!S.pult) });
+    { k: 'Офис', t: 'Подключить ИИ', run: () => renderConnect() }, { k: 'Режим', t: S.pult ? 'Офис (3D)' : 'Пульт', run: () => setPult(!S.pult) }, { k: 'Офис', t: 'Итоги дня', run: () => openDigest() });
   if (S.live) cmds.push({ k: 'Офис', t: 'Нанять агента', run: () => openHire('') }, { k: 'Офис', t: 'Чаты', run: () => $('chatsBtn').click() }, { k: 'Офис', t: 'История расхода', run: () => openUsage() });
   return cmds;
 }

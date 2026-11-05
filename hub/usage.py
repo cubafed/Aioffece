@@ -4,6 +4,7 @@ Claude Code: ~/.claude/projects/<dir>/<session>.jsonl — every assistant messag
 Codex: ~/.codex/sessions/YYYY/MM/DD/*.jsonl — token_count events carry last_token_usage.
 Results are cached per file (mtime, size), so a rescan only reads files that changed.
 """
+import datetime
 import glob
 import json
 import os
@@ -14,7 +15,12 @@ _cache = {}   # path -> (mtime, size, {(day, project): tokens}, kind)
 
 
 def _day(ts):
-    return str(ts or '')[:10]
+    """Local calendar day of an ISO timestamp (the logs write UTC; a 01:00 Moscow message belongs to today)."""
+    s = str(ts or '')
+    try:
+        return datetime.datetime.fromisoformat(s.replace('Z', '+00:00')).astimezone().strftime('%Y-%m-%d')
+    except ValueError:
+        return s[:10]
 
 
 def _claude_file(path):
@@ -71,7 +77,7 @@ def scan():
     files = [(p, 'claude') for p in glob.glob(os.path.join(home, '.claude/projects/*/*.jsonl'))] + \
             [(p, 'codex') for p in glob.glob(os.path.join(home, '.codex/sessions/*/*/*/*.jsonl'))]
     first = time.strftime('%Y-%m-%d', time.localtime(since))
-    res = {'claude': {}, 'codex': {}, 'projects': {}}
+    res = {'claude': {}, 'codex': {}, 'projects': {}, 'days': {}}
     for path, kind in files:
         try:
             st = os.stat(path)
@@ -90,7 +96,14 @@ def scan():
             if day >= first:
                 res[kind][day] = res[kind].get(day, 0) + n
                 res['projects'][proj] = res['projects'].get(proj, 0) + n
+                per = res['days'].setdefault(day, {})
+                per[proj] = per.get(proj, 0) + n
     return res
+
+
+def scan_day(day):
+    """{project: tokens} for one day on this machine."""
+    return dict(scan()['days'].get(day) or {})
 
 
 def merge(*parts):
