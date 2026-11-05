@@ -105,6 +105,16 @@ def base(p):
     return os.path.basename(p) or p
 
 
+def ask_detail(tool, inp):
+    """The exact thing an agent asks permission for: the full command, the file, the URL."""
+    inp = inp if isinstance(inp, dict) else {}
+    for k in ('command', 'cmd', 'file_path', 'notebook_path', 'path', 'url', 'query', 'pattern'):
+        v = inp.get(k)
+        if v:
+            return ' '.join(map(str, v)) if isinstance(v, list) else str(v)[:300]
+    return ''
+
+
 def describe(tool, inp):
     inp = inp if isinstance(inp, dict) else {}
     if tool in ('Bash', 'shell', 'local_shell', 'exec_command', 'shell_command', 'Shell', 'run_command'):
@@ -185,9 +195,9 @@ def new_agent(key, src, sid, p, name=None):
     proj = p.get('project') or base(p.get('cwd')) or 'Без проекта'
     ensure_project(proj)
     nm = name or NAMES.get(src, src.capitalize()) + '·' + proj
-    same = [x for x in agents.values() if x['name'].startswith(nm)]
-    if same and not name:
-        nm += ' ' + str(len(same) + 1)
+    taken = {x['name'] for x in agents.values()}
+    if nm in taken and not name:              # first free number, not a count: «Клод·Дом 2» may still be around when 1 has left
+        nm += ' ' + str(next(n for n in range(2, 999) if nm + ' ' + str(n) not in taken))
     a = {'id': key, 'src': src, 'session': sid, 'name': nm, 'project': proj, 'cwd': p.get('cwd') or '',
          'host': p.get('host') or '', 'status': 'resting', 'task': 'Сессия открыта', 'prompt': '',
          'since': time.time(), 'started': time.time(), 'last': time.time(), 'steps': 0, 'tasks': 0, 'events': 0,
@@ -267,7 +277,8 @@ def handle_hook(src, p):
                 set_status(a, 'working')
         elif ev == 'PermissionRequest':
             close_approval(a, 'replaced')
-            ap = {'id': uuid.uuid4().hex, 'agent': key, 'decision': None, 'live': True, 'event': threading.Event()}
+            ap = {'id': uuid.uuid4().hex, 'agent': key, 'decision': None, 'live': True, 'event': threading.Event(),
+                  'ask': {'tool': tool, 'text': ask_detail(tool, p.get('tool_input'))}}
             approvals[ap['id']] = ap
             a['approval'] = ap['id']
             set_status(a, 'waiting', 'Разрешить? ' + describe(tool, p.get('tool_input')))
@@ -1050,6 +1061,7 @@ def snapshot():
                         'project': a['project'], 'since': a['since'], 'steps': a['steps'], 'tasks': a['tasks'],
                         'events': a['events'], 'hist': a['hist'],
                         'approval': ap['id'] if ap and ap['live'] and not ap['decision'] else None,
+                        'ask': ap.get('ask') if ap and ap['live'] and not ap['decision'] else None,
                         'where': (a['host'] + ' · ' if a['host'] else '') + a['cwd'].replace(os.path.expanduser('~'), '~'),
                         'managed': bool(a.get('managed')), 'running': a['id'] in RUNS, 'chatLen': len(a.get('chat') or []),
                         'forkable': continuable(a) == '',

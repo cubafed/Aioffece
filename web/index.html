@@ -93,6 +93,12 @@ body.pult .ctl{display:none!important}
 .ar .acts .btn{min-height:28px;padding:0 10px;font-size:12px}
 .ar form{display:flex;gap:6px;flex:1;min-width:180px}
 .ar form input{flex:1;min-width:0;border:0;background:var(--chip);border-radius:8px;padding:0 10px;font:inherit;font-size:12.5px;color:var(--ink);min-height:28px}
+.ar .ask{grid-column:2/4;margin:6px 0 0;padding:8px 10px;border-radius:9px;background:rgba(17,20,26,.88);color:#e8edf5;font:12px/1.45 ui-monospace,'SF Mono',Menlo,monospace;white-space:pre-wrap;word-break:break-all;max-height:7.5em;overflow:auto}
+.ar .ask b{color:#ffcf7a;font-weight:600}
+.ar.kb{box-shadow:inset 3px 0 0 var(--btn)}
+#pult .search{flex:1;max-width:340px;border:0;background:var(--panel-strong);border-radius:10px;padding:0 12px;font:inherit;font-size:13px;color:var(--ink);min-height:34px;box-shadow:var(--glass)}
+#pult .keys{font-size:11.5px;color:var(--muted);margin-left:auto}
+#pult .keys kbd{font:inherit;font-size:11px;padding:1px 5px;border-radius:5px;background:var(--chip);box-shadow:inset 0 -1px 0 var(--line)}
 .ar.waiting{background:linear-gradient(90deg,rgba(240,160,32,.14),transparent 70%)}
 .ar.error{background:linear-gradient(90deg,rgba(229,72,77,.12),transparent 70%)}
 .goalf{display:flex;gap:6px;padding:10px 14px;border-top:1px solid var(--line)}
@@ -458,7 +464,7 @@ body[data-dark="1"] .pill-ok{background:#163222;color:#7fe0a0}
 </div>
 
 <div class="card" id="caption" hidden aria-live="polite"><b></b><span></span></div>
-<div id="pult" hidden></div>
+<div id="pult" hidden><div class="bar" style="margin-bottom:8px"><h1>Пульт</h1><input class="search" id="pultQ" placeholder="Поиск по агентам, задачам, ответам…" autocomplete="off" aria-label="Поиск в пульте"></div><div id="pultBody"></div></div>
 <div id="chatWrap"></div>
 <div id="palWrap"></div>
 <div id="connectWrap"></div>
@@ -1118,26 +1124,29 @@ function agentRow(a) {
   if (a.managed && a.running) acts.push(`<button class="btn ghost" data-stop="${a.id}">Стоп</button>`);
   if (a.managed || a.forkable) acts.push(`<form data-pultsend="${a.id}"><input name="t" data-pin="${a.id}" placeholder="${a.managed ? 'Ответить ' + esc(a.name) + '…' : a.kind === 'codex' ? 'Ответить — продолжу этот тред Codex…' : 'Ответить — продолжу копию сессии в офисе…'}" autocomplete="off"><button class="btn ghost" type="submit">→</button></form>`);
   acts.push(`<button class="btn ghost" data-chat="${a.id}">Чат</button>`);
-  return `<div class="ar ${a.status}"><div class="av" style="background:${k.color}" aria-hidden="true">${esc((k.label || a.kind)[0])}</div>
+  const ask = a.status === 'waiting' && a.ask && a.ask.text ? `<pre class="ask"><b>${esc(a.ask.tool)}</b>  ${esc(a.ask.text)}</pre>` : '';
+  return `<div class="ar ${a.status}${S.kb === a.id ? ' kb' : ''}" data-ar="${a.id}"><div class="av" style="background:${k.color}" aria-hidden="true">${esc((k.label || a.kind)[0])}</div>
     <div class="nm">${esc(a.name)} <small>${esc(k.label || a.kind)}${a.where ? ' · ' + esc(a.where) : ''}</small></div>
     <span class="pill" style="background:${pl[1]};color:${pl[2]}">${pl[0]} · ${agoTxt(a.since)}</span>
-    <div class="tk">${esc(taskOf(a))}</div>${a.reply ? `<div class="rp">${esc(a.reply)}</div>` : ''}<div class="acts">${acts.join('')}</div></div>`;
+    <div class="tk">${esc(taskOf(a))}</div>${ask}${a.reply && a.status !== 'waiting' ? `<div class="rp">${esc(a.reply)}</div>` : ''}<div class="acts">${acts.join('')}</div></div>`;
 }
 function renderPult() {
-  const el = $('pult'); el.hidden = !S.pult; document.body.classList.toggle('pult', !!S.pult);
+  $('pult').hidden = !S.pult; document.body.classList.toggle('pult', !!S.pult);
   if (!S.pult) return;
+  const el = $('pultBody');
   const focus = document.activeElement && el.contains(document.activeElement) && document.activeElement.dataset.pin ? { id: document.activeElement.dataset.pin, v: document.activeElement.value, s: document.activeElement.selectionStart } : null;
   if (focus) return;            // never rebuild under the user's fingers; the next update after they send will refresh
   const goalVals = {}; el.querySelectorAll('[data-goalin]').forEach(i => { if (i.value) goalVals[i.dataset.goalin] = i.value; });
   const all = ALL(), n = (st) => all.filter(a => a.status === st).length;
-  const pass = (a) => S.pf === 'all' || a.status === S.pf;
+  const q = (S.pq || '').trim().toLowerCase();
+  const pass = (a) => (S.pf === 'all' || a.status === S.pf) && (!q || (a.name + ' ' + a.task + ' ' + (a.project || '') + ' ' + (a.reply || '')).toLowerCase().includes(q));
   const chips = [['all', 'Все', all.length], ['waiting', 'Ждут', n('waiting')], ['working', 'Работают', n('working')], ['error', 'Застряли', n('error')], ['done', 'Готово', n('done')]]
     .map(([k, l, c]) => `<button data-pf="${k}" aria-pressed="${S.pf === k}">${l} ${c}</button>`).join('');
   const boards = (S.hub && S.hub.boards) || {}, kinds = S.hub ? [...new Set(Object.values(S.hub.hosts || {}).flat())].filter(k => k === 'claude' || k === 'codex') : [];
   const cards = FLOORS.map((f, fi) => {
     const list = f.agents.filter(pass).sort((x, y) => (ORDER[x.status] ?? 9) - (ORDER[y.status] ?? 9) || y.since - x.since);
     const b = boards[f.name], br = b && b.branches ? b.branches.length : 0;
-    if (!list.length && (S.pf !== 'all' || f.annex)) return '';
+    if (!list.length && (S.pf !== 'all' || f.annex || q)) return '';
     const proj = S.hub && S.hub.projects.find(p => p.name === f.name), host = proj && proj.host ? (proj.host === S.hub.localHost ? 'Мак' : 'сервер') : '';
     const pk = proj && proj.host ? kinds.filter(k => ((S.hub.hosts || {})[proj.host] || []).includes(k)) : [];
     let mis = '';
@@ -1148,7 +1157,7 @@ function renderPult() {
       ${br ? `<button class="btn ghost" data-review="${esc(b.branches[0].branch)}" data-rfi="${fi}">Ветки ${br}</button>` : ''}${!f.agents.length && !f.annex ? `<button class="btn ghost" data-forgetproj="${esc(f.name)}">Убрать</button>` : ''}<button class="btn ghost" data-floor="${fi}" data-pultfloor="1">В офис</button></div>
       ${mis}${list.map(agentRow).join('') || '<div class="pempty" style="padding:16px">Агентов пока нет</div>'}${goalForm}</section>`;
   }).join('');
-  const html = `<div class="bar"><h1>Пульт</h1><div class="card chips">${chips}</div></div><div class="grid">${cards || '<div class="pempty">Под этот фильтр никого нет</div>'}</div>`;
+  const html = `<div class="bar"><div class="card chips">${chips}</div><span class="keys"><kbd>/</kbd> поиск · <kbd>J</kbd><kbd>K</kbd> выбор · <kbd>A</kbd> одобрить · <kbd>D</kbd> отклонить · <kbd>R</kbd> ответить · <kbd>↵</kbd> чат</span></div><div class="grid">${cards || '<div class="pempty">Под этот фильтр никого нет</div>'}</div>`;
   if (html !== S.pultHtml) { S.pultHtml = html; el.innerHTML = html; }   // hub updates every second: touch the DOM only on real change
 }
 document.addEventListener('submit', (e) => {
@@ -1167,6 +1176,21 @@ $('pult').addEventListener('click', (e) => { const c = e.target.closest('[data-p
   const cm = e.target.closest('[data-cancelmis]'); if (cm) { e.stopPropagation(); api('/api/mission', { project: cm.dataset.cancelmis, cancel: true }).then(() => log('Ты', 'отменил миссию: ' + cm.dataset.cancelmis, 'resting')).catch(toastErr); return; }
   const r = e.target.closest('[data-rfi]'); if (r) S.floor = +r.dataset.rfi;   // openReview reads the current floor
   if (e.target.closest('[data-pultfloor]')) setPult(false); }, true);
+$('pultQ').addEventListener('input', (e) => { S.pq = e.target.value; renderPult(); });
+// keyboard: J/K pick an agent, A/D answer its permission request, R jumps to its reply box, Enter opens the chat
+function pultOrder() { return [...$('pultBody').querySelectorAll('[data-ar]')].map(n => n.dataset.ar); }
+document.addEventListener('keydown', (e) => {
+  if (!S.pult || S.pal || e.metaKey || e.ctrlKey || e.altKey || $('hireWrap').innerHTML || $('connectWrap').innerHTML) return;
+  if (e.target.matches && e.target.matches('input,textarea,select')) { if (e.key === 'Escape') e.target.blur(); return; }
+  const ids = pultOrder(), i = ids.indexOf(S.kb), k = e.key.toLowerCase(), a = S.kb && byId(S.kb);
+  if (k === '/') { e.preventDefault(); $('pultQ').focus(); }
+  else if (k === 'j' || k === 'о' || k === 'k' || k === 'л') { e.preventDefault(); const down = k === 'j' || k === 'о'; S.kb = ids[Math.max(0, Math.min(ids.length - 1, i < 0 ? 0 : i + (down ? 1 : -1)))]; S.pultHtml = ''; renderPult();
+    const n = $('pultBody').querySelector('.ar.kb'); if (n) n.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  else if (a && (k === 'a' || k === 'ф')) { e.preventDefault(); approve(a.id); }
+  else if (a && (k === 'd' || k === 'в')) { e.preventDefault(); deny(a.id); }
+  else if (a && (k === 'r' || k === 'к')) { const inp = $('pultBody').querySelector(`[data-pin="${a.id}"]`); if (inp) { e.preventDefault(); inp.focus(); } }
+  else if (a && e.key === 'Enter') { e.preventDefault(); openChat(a.id); }
+});
 document.addEventListener('focusout', (e) => { if (e.target.dataset && e.target.dataset.pin && !e.target.value) setTimeout(renderPult, 50); });
 $('viewBtn').onclick = (e) => { e.stopPropagation(); const m = $('viewMenu'); m.hidden = !m.hidden; $('viewBtn').setAttribute('aria-expanded', String(!m.hidden)); };
 document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.viewwrap')) { $('viewMenu').hidden = true; $('viewBtn').setAttribute('aria-expanded', 'false'); } });
@@ -1196,10 +1220,10 @@ $('cmd').addEventListener('submit', (e) => { e.preventDefault(); const v = $('cm
   if (a) { setStatus(a, 'working', v); log('Ты → ' + a.name, v, 'working'); }
   $('cmdText').value = ''; renderUI(); });
 document.addEventListener('keydown', (e) => {
-  if (e.target.matches('input')) return;
+  if (e.target.matches && e.target.matches('input')) return;
   if (e.key === 'Escape' && S.tour) { stopTour(); return; }
   if (e.key === 'Escape') { if ($('connectWrap').innerHTML) $('connectWrap').innerHTML = ''; else if (S.chat) { S.chat = null; renderChat(); } else if (S.sel) { S.sel = null; renderUI(); } else closeFloor(); }
-  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role="button"]')) { e.preventDefault(); e.target.click(); }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[role="button"]')) { e.preventDefault(); e.target.click(); }
   if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); const cur = S.open && !FLOORS[S.floor].annex ? FLOORS[S.floor].n : 0, n = Math.max(1, Math.min(NF, cur + (e.key === 'ArrowUp' ? 1 : -1))); openFloor(FLOORS.findIndex(f => f.n === n)); }
 });
 // picking
@@ -2152,7 +2176,7 @@ function applyHub(st) {
     const a = prev.get(h.id) || { id: h.id, seatKind: null, use: 0 };
     a.prevStatus = a.status;
     Object.assign(a, { name: h.name, kind: KIND[h.kind] ? h.kind : 'claude', status: h.status, task: h.task, since: h.since * 1000, steps: h.steps, tasks: h.tasks,
-      events: h.events, look: h.look, xp: h.xp, badges: h.badges, errors: h.errors, managed: h.managed, running: h.running, chatLen: h.chatLen, forkable: h.forkable, hist: h.hist && h.hist.length > 1 ? h.hist : [0, 0], role: h.kind === 'grok' ? 'Grok Bot · команда ' + h.project : h.where, approval: h.approval, fi, reply: h.reply || '', project: h.project, where: h.where });
+      events: h.events, look: h.look, xp: h.xp, badges: h.badges, errors: h.errors, managed: h.managed, running: h.running, chatLen: h.chatLen, forkable: h.forkable, hist: h.hist && h.hist.length > 1 ? h.hist : [0, 0], role: h.kind === 'grok' ? 'Grok Bot · команда ' + h.project : h.where, approval: h.approval, ask: h.ask, fi, reply: h.reply || '', project: h.project, where: h.where });
     floors[fi].agents.push(a);
   });
   soundsFor(new Map([...prev.values()].map(a => [a.id, a.prevStatus])));
