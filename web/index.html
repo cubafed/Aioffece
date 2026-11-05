@@ -4,6 +4,7 @@
 <style>
 /* Layout: full-bleed isometric diorama (office tower on an island), white cards float at the edges */
 [hidden]{display:none!important}
+@media (max-width:1380px){.counts{display:none!important}}   /* the right card shows the same numbers */
 :root{
   --bg:#dfe5db; --panel:rgba(255,255,255,.58); --panel-strong:rgba(255,255,255,.84); --rim:rgba(255,255,255,.7);
   --ink:#15171c; --muted:#59606b; --line:rgba(17,24,39,.08); --chip:rgba(255,255,255,.55);
@@ -573,6 +574,7 @@ controls.minPolarAngle = 0.4; controls.maxPolarAngle = 1.25;
 controls.minZoom = 0.55; controls.maxZoom = 4.5; controls.screenSpacePanning = true;
 const HOME = { target: new THREE.Vector3(0, 7, 0), zoom: 1 };
 controls.target.copy(HOME.target); controls.update();
+controls.addEventListener('start', () => { camGoal.until = 0; });
 
 const ENV = {};
 const skyTex = (top, mid, bot) => textTex(4, 256, (c, w, h) => { const gr = c.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, top); gr.addColorStop(0.55, mid); gr.addColorStop(1, bot); c.fillStyle = gr; c.fillRect(0, 0, w, h); });
@@ -585,7 +587,7 @@ const skyTex = (top, mid, bot) => textTex(4, 256, (c, w, h) => { const gr = c.cr
 const hemi = new THREE.HemisphereLight(0xffffff, 0xb7c2ae, 0.55); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff3e2, 1.3);
 sun.position.set(-30, 60, 35); sun.castShadow = true;
-sun.shadow.mapSize.set(4096, 4096); sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.03;
+sun.shadow.mapSize.setScalar(/[?&]lite\b/.test(location.search) ? 512 : 4096);   // ?lite: software-rendered checks sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.03;
 Object.assign(sun.shadow.camera, { left:-42, right:42, top:36, bottom:-36, near:1, far:150 });
 scene.add(sun);
 
@@ -871,15 +873,36 @@ function addHat(body, shape, hat) {
     [-0.34, 0.34].forEach(x => { const c = cyl(0.09, 0.09, 0.08, dark, x, top - 0.12, 0, body, 12); c.rotation.z = Math.PI / 2; });
   }
 }
+const SIDE = { drop: 0.4, cube: 0.39, sphere: 0.44, capsule: 0.36 };
+const SPARK_G = new THREE.SphereGeometry(0.018, 6, 4), SPARK_M = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const ARM_G = new THREE.CapsuleGeometry(0.065, 0.16, 3, 8), RING_G = new THREE.RingGeometry(0.46, 0.6, 40);
+const RING_C = { working: '#22c55e', waiting: '#f59e0b', error: '#ef4444', done: '#3b82f6' };
+function limbs(r, t) {   // arms type while working, wave while waiting for you, hang while resting; a status ring under the feet
+  const a = r.a, p = r.phase;
+  r.arms.forEach(piv => { const sd = piv.userData.sd;
+    if (a.status === 'working') { piv.rotation.set(-1.1 + Math.sin(t / 70 + p + sd * 1.6) * 0.25, 0, sd * 0.15); }
+    else if (a.status === 'waiting' && sd > 0) { piv.rotation.set(0, 0, 2.5 + Math.sin(t / 140 + p) * 0.45); }
+    else if (a.status === 'error') { piv.rotation.set(0, 0, sd * (1.0 + Math.sin(t / 90 + p) * 0.3)); }
+    else piv.rotation.set(0.05, 0, sd * 0.12); });
+  const c = RING_C[a.status], m = r.ring.material;
+  if (!c) { m.opacity += (0 - m.opacity) * 0.1; return; }
+  m.color.set(c);
+  const pulse = a.status === 'waiting' || a.status === 'error' ? 0.45 + Math.sin(t / 220 + p) * 0.35 : a.status === 'working' ? 0.55 : 0.35;
+  m.opacity += (pulse - m.opacity) * 0.15;
+  const sc = a.status === 'waiting' ? 1 + (Math.sin(t / 220 + p) + 1) * 0.12 : 1; r.ring.scale.setScalar(sc);
+}
 function makeAgent(a, delay, arrive) {
   const k = KIND[a.kind], look = a.look || {}, g = new THREE.Group(), m = new THREE.MeshStandardMaterial({ color: look.color || k.color, roughness: 0.5, flatShading: true });
   const body = new THREE.Mesh(bodyGeo(k.shape), m); body.castShadow = true; g.add(body);
   const eye = new THREE.MeshBasicMaterial({ color: 0x111111 }), ey = EYE[k.shape][0], ez = EYE[k.shape][1];
-  [-0.12, 0.12].forEach(dx => { const e = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), eye); e.position.set(dx, ey, -ez); e.scale.set(1, 1.25, 0.5); body.add(e); });
+  [-0.12, 0.12].forEach(dx => { const e = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), eye); e.position.set(dx, ey, -ez); e.scale.set(1, 1.25, 0.5); body.add(e);
+    const sp = new THREE.Mesh(SPARK_G, SPARK_M); sp.position.set(dx - 0.018, ey + 0.03, -ez - 0.03); body.add(sp); });   // a catch-light makes the face read as alive
+  const arms = [-1, 1].map(sd => { const piv = new THREE.Object3D(); piv.position.set(sd * SIDE[k.shape], -0.02, -0.04); const arm = new THREE.Mesh(ARM_G, m); arm.position.y = -0.13; arm.castShadow = true; piv.add(arm); piv.userData.sd = sd; body.add(piv); return piv; });
+  const ring = new THREE.Mesh(RING_G, new THREE.MeshBasicMaterial({ color: '#22c55e', transparent: true, opacity: 0.0, depthWrite: false, toneMapped: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; ring.renderOrder = 3; g.add(ring);
   if (look.hat || a.crown) addHat(body, k.shape, look.hat || 'crown');
   body.userData.agentId = a.id; FLOORS[a.fi].L.agents.add(g);
   const bub = document.createElement('button'); bub.className = 'bub'; bub.addEventListener('click', () => select(a.id)); $('ov').appendChild(bub);
-  const r = { a, g, body, bub, phase: Math.random() * 6, drop: performance.now() + (delay || 0), floorL: FLOORS[a.fi].L, lookSig: JSON.stringify(look) };
+  const r = { a, g, body, bub, arms, ring, phase: Math.random() * 6, drop: performance.now() + (delay || 0), floorL: FLOORS[a.fi].L, lookSig: JSON.stringify(look) };
   AG.set(a.id, r);
   if (arrive && !FLOORS[a.fi].annex) {        // new hire: rides the lift up and walks to the desk
     g.position.set(W / 2 - 0.8, 0, D / 2 - 1.0); r.placed = true;
@@ -949,6 +972,7 @@ function chatPush(a, who, text) { a.chat = a.chat || [{ who: 'bot', text: a.task
 function openChat(id) { if (S.live) { S.chat = id; S.chatMsgs = null; S.chatLen = -1; renderChat(); return loadChat(id); } const a = byId(id); if (!a) return; a.chat = a.chat || [{ who: 'sys', text: KIND[a.kind].label + ' · этаж ' + FLOORS[a.fi].n }, { who: 'bot', text: a.status === 'waiting' ? a.task : 'Сейчас: ' + a.task.toLowerCase() }]; S.chat = id; renderChat(); }
 
 /* ================= UI ================= */
+const taskOf = (a) => (a.task || '').replace(/^(Готово|Застрял|Ошибка):\s*/, '');   // the status is shown next to it already
 const ST = { working: 'Работает', waiting: 'Ждёт тебя', done: 'Готово', resting: 'Отдыхает', error: 'Застрял' };
 const ava = (a, cls) => `<span class="ava ${cls || ''}" style="background:${KIND[a.kind].color};--c:${KIND[a.kind].color}" aria-hidden="true"><i></i></span>`;
 function renderUI() {
@@ -990,13 +1014,13 @@ function renderUI() {
   } else if (S.open) {
     const f = FLOORS[S.floor], w = f.agents.filter(a => a.status === 'working').length, wt = f.agents.filter(a => a.status === 'waiting').length;
     $('rh').style.background = f.color;
-    $('rh').innerHTML = `<div><div class="nm">${esc(f.name)}</div><div class="big">${w}<small> работают</small></div></div><div class="meta">Этаж ${f.n} · ${f.agents.length} ботов<br>ждут ${wt}<br>застряли 0</div>`;
-    $('rl').innerHTML = S.tab === 'board' ? boardHtml(f) : S.tab === 'team' ? f.agents.map(a => `<div class="ag" role="button" tabindex="0" data-sel="${a.id}">${ava(a)}<div class="tx"><div class="nm">${esc(a.name)} <span class="muted" style="font-weight:500;font-size:11px">${KIND[a.kind].label}</span></div><div class="ds muted">${ST[a.status]} · ${esc(a.task)}</div></div><i class="dot s-${a.status} st"></i></div>`).join('')
+    $('rh').innerHTML = `<div><div class="nm">${esc(f.name)}</div><div class="big">${w}<small> работают</small></div></div><div class="meta">Этаж ${f.n} · ${f.agents.length} ботов<br>ждут ${wt}<br>застряли ${f.agents.filter(a => a.status === 'error').length}</div>`;
+    $('rl').innerHTML = S.tab === 'board' ? boardHtml(f) : S.tab === 'team' ? f.agents.map(a => `<div class="ag" role="button" tabindex="0" data-sel="${a.id}">${ava(a)}<div class="tx"><div class="nm">${esc(a.name)} <span class="muted" style="font-weight:500;font-size:11px">${KIND[a.kind].label}</span></div><div class="ds muted">${ST[a.status]} · ${esc(taskOf(a))}</div></div><i class="dot s-${a.status} st"></i></div>`).join('')
       : f.agents.map(a => `<div class="use"><div class="r"><span>${esc(a.name)}</span><span class="muted">${S.live ? a.steps + ' шагов' : (a.use / 10).toFixed(1) + '% лимита'}</span></div><div class="bar"><i style="width:${S.live ? Math.min(100, a.steps) : a.use * 2}%;background:${KIND[a.kind].color}"></i></div></div>`).join('');
   } else {
     const w = all.filter(a => a.status === 'working').length;
     $('rh').style.background = S.dark ? '#2a2f38' : '#16181c';
-    $('rh').innerHTML = `<div><div class="nm">Всё здание</div><div class="big">${w}<small> работают</small></div></div><div class="meta">${FLOORS.length} этажей · ${all.length} ботов<br>ждут ${waiting.length}<br>застряли 0</div>`;
+    $('rh').innerHTML = `<div><div class="nm">Всё здание</div><div class="big">${w}<small> работают</small></div></div><div class="meta">${FLOORS.length} этажей · ${all.length} ботов<br>ждут ${waiting.length}<br>застряли ${all.filter(a => a.status === 'error').length}</div>`;
     $('rl').innerHTML = S.tab === 'team' ? FLOORS.map((f, i) => { const b = f.agents.filter(a => a.status === 'working').length;
       return `<div class="ag" role="button" tabindex="0" data-floor="${i}"><span class="ava" style="background:${f.color};color:#fff;font-weight:700;font-size:12px">${f.n}</span><div class="tx"><div class="nm">${esc(f.name)}</div><div class="ds muted">${b} из ${f.agents.length} работают${f.agents.some(a => a.status === 'waiting') ? ' · есть запрос' : ''}</div></div></div>`; }).join('')
       : S.live ? fameHtml() : [['Claude Max', 'claude', 31], ['ChatGPT · Codex', 'codex', 48], ['SuperGrok', 'grok', 12], ['Gemini Pro', 'gemini', 20]].map(([n, k, p]) => `<div class="use"><div class="r"><span>${n}</span><span class="muted">${p}% недели</span></div><div class="bar"><i style="width:${p}%;background:${KIND[k].color}"></i></div></div>`).join('');
@@ -1097,7 +1121,7 @@ function agentRow(a) {
   return `<div class="ar ${a.status}"><div class="av" style="background:${k.color}" aria-hidden="true">${esc((k.label || a.kind)[0])}</div>
     <div class="nm">${esc(a.name)} <small>${esc(k.label || a.kind)}${a.where ? ' · ' + esc(a.where) : ''}</small></div>
     <span class="pill" style="background:${pl[1]};color:${pl[2]}">${pl[0]} · ${agoTxt(a.since)}</span>
-    <div class="tk">${esc(a.task || '')}</div>${a.reply ? `<div class="rp">${esc(a.reply)}</div>` : ''}<div class="acts">${acts.join('')}</div></div>`;
+    <div class="tk">${esc(taskOf(a))}</div>${a.reply ? `<div class="rp">${esc(a.reply)}</div>` : ''}<div class="acts">${acts.join('')}</div></div>`;
 }
 function renderPult() {
   const el = $('pult'); el.hidden = !S.pult; document.body.classList.toggle('pult', !!S.pult);
@@ -1370,7 +1394,11 @@ function frame(t) {
 }
 function frameBody(t) {
   // camera easing towards goal after a floor change
-  if (t < camGoal.until) { const k = reduce ? 1 : 0.09; controls.target.lerp(camGoal.target, k); camera.zoom += (camGoal.zoom - camera.zoom) * k; camera.updateProjectionMatrix(); }
+  const dt = Math.min(250, t - (S.lastT || t)); S.lastT = t;
+  // glide until it arrives; grabbing the camera cancels it
+  if (camGoal.until) { const k = reduce ? 1 : 1 - Math.exp(-dt / 160);   // time-based: same glide at 20 or 120 fps
+    controls.target.lerp(camGoal.target, k); camera.zoom += (camGoal.zoom - camera.zoom) * k; camera.updateProjectionMatrix();
+    if (controls.target.distanceTo(camGoal.target) < 0.05 && Math.abs(camGoal.zoom - camera.zoom) < 0.01) camGoal.until = 0; }
   controls.update();
   // cutaway: floors above the open one disappear, the open floor loses its facade
   const openL = S.open ? FLOORS[S.floor].L : null;
@@ -1404,6 +1432,7 @@ function frameBody(t) {
     if (used >= 100 && a.status !== 'resting') { b.rotation.z = 0.5; b.position.y = base - 0.05; }   // out of limit: dozing at the desk
     else if (used >= 85 && a.status !== 'resting') { b.scale.set(1.05, 0.9, 1.05); }                 // tired
     else if (a.status !== 'resting') b.scale.set(1, 1, 1);
+    if (r.arms) limbs(r, t);
     if (r.emote && !reduce) {         // short emotions: joy jump, head shake, yawn
       const k = (t - r.emote.t0) / r.emote.dur;
       if (k >= 1) r.emote = null;
