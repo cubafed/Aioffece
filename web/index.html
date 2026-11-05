@@ -4,6 +4,8 @@
 <style>
 /* Layout: full-bleed isometric diorama (office tower on an island), white cards float at the edges */
 [hidden]{display:none!important}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}   /* an app, not a page: labels and buttons do not highlight */
+.msg,.msg *,input,textarea,pre,.ask,.rp,.dg .pj li,.tk{-webkit-user-select:text;user-select:text}
 body.intro .card{opacity:0!important;translate:0 14px}
 .brand,.tr{transition-delay:.05s,.05s,0s,0s}.left{transition-delay:.15s,.15s,0s,0s}.right{transition-delay:.25s,.25s,0s,0s}.act,.limits{transition-delay:.35s,.35s,0s,0s}   /* only the entrance is staggered */
 @media (max-width:1600px){.counts{display:none!important}}   /* the right card shows the same numbers */
@@ -934,6 +936,7 @@ function limbs(r, t) {   // arms type while working, wave while waiting for you,
 }
 function makeAgent(a, delay, arrive) {
   const k = KIND[a.kind], look = a.look || {}, g = new THREE.Group(), m = new THREE.MeshStandardMaterial({ color: look.color || k.color, roughness: 0.5, flatShading: true });
+  m.emissive.set(look.color || k.color); m.emissiveIntensity = S.dark ? 0.45 : 0;   // at night the agents glow softly so they read against a dark floor
   const body = new THREE.Mesh(bodyGeo(k.shape), m); body.castShadow = true; g.add(body);
   const eye = new THREE.MeshBasicMaterial({ color: 0x111111 }), ey = EYE[k.shape][0], ez = EYE[k.shape][1];
   [-0.12, 0.12].forEach(dx => { const e = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), eye); e.position.set(dx, ey, -ez); e.scale.set(1, 1.25, 0.5); body.add(e);
@@ -1002,7 +1005,7 @@ function paintTags() { allLevels().forEach(L => { const f = L.f, busy = f.agents
 /* ================= state changes ================= */
 const camGoal = { target: HOME.target.clone(), zoom: 1, until: 0 };
 function openFloor(i) { if (!FLOORS[i]) return; S.floor = i; S.open = true; S.sel = null; const L = FLOORS[i].L;
-  camGoal.target.set((L.lvl < 0 ? AX : BX) + 1, L.base + 0.8, BZ + 1); camGoal.zoom = innerWidth < 760 ? 1.5 : 1.85; camGoal.until = performance.now() + 1200; renderUI(); }
+  camGoal.target.set((L.lvl < 0 ? AX : BX) + 1, L.base + 0.8, BZ + 1); camGoal.zoom = innerWidth < 760 ? 1.7 : 2.5; camGoal.until = performance.now() + 1200; renderUI(); }
 function closeFloor() { S.open = false; S.sel = null; camGoal.target.copy(HOME.target); camGoal.zoom = 1; camGoal.until = performance.now() + 1200; renderUI(); }
 function log(who, what, st) { const l = [nowHM(), who, what, st || 'working']; LOG.forEach(x => x.fresh = false); l.fresh = true; LOG.unshift(l); LOG.length = Math.min(LOG.length, 40); }
 function setStatus(a, st, task) { const wasRest = a.status === 'resting'; if (a.status !== st) { a.since = Date.now(); a.steps++; } a.status = st; if (task) a.task = task; if (wasRest !== (st === 'resting')) place(a); paintBubble(a); }
@@ -1432,6 +1435,7 @@ function applyDark() {
   POOL_MAT.opacity = d ? 0.55 : 0;
   updateSun();
   applySkin();
+  AG.forEach(r => { r.body.material.emissiveIntensity = d ? 0.45 : 0; });
   tuneFX(); paintFX();
   renderUI();
 }
