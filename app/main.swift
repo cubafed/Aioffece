@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     var status: NSStatusItem!
     var agents: [[String: Any]] = []
     var online = false
+    var bannersAllowed = false     // macOS 26 refuses banners to ad-hoc signed apps: the Dock icon bounces instead
     var seen: [String: (status: String, approval: String)]? = nil   // nil until the first poll: no burst of old news at launch
     var web: WKWebView!
     var retry: Timer?
@@ -162,7 +163,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let allow = UNNotificationAction(identifier: "allow", title: "Одобрить", options: [])
         let deny = UNNotificationAction(identifier: "deny", title: "Отклонить", options: [.destructive])
         c.setNotificationCategories([UNNotificationCategory(identifier: "approval", actions: [allow, deny], intentIdentifiers: [], options: [])])
-        c.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+        c.requestAuthorization(options: [.alert, .sound, .badge]) { [weak self] granted, err in
+            DispatchQueue.main.async { self?.bannersAllowed = granted }
+            applog("notifications: " + (granted ? "allowed" : "not allowed") + (err.map { " (\($0.localizedDescription))" } ?? ""))
+        }
     }
     func notifyChanges() {
         var now: [String: (status: String, approval: String)] = [:]
@@ -193,13 +197,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
     func post(id: String, title: String, body: String, category: String, info: [String: String], sound: Bool, looking: Bool) {
         if looking { return }                       // the office is in front of you: it already shows this
+        if !bannersAllowed {                        // no banner permission: bounce the Dock icon, until opened for a request
+            NSApp.requestUserAttention(category == "approval" ? .criticalRequest : .informationalRequest)
+            applog("attention " + id)
+            return
+        }
         let c = UNMutableNotificationContent()
         c.title = title
         c.body = String(body.prefix(220))
         c.categoryIdentifier = category
         c.userInfo = info
         if sound { c.sound = .default }
-        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: c, trigger: nil))
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: c, trigger: nil)) { err in
+            applog("notify " + id + ": " + (err?.localizedDescription ?? "posted"))
+        }
     }
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                 withCompletionHandler done: @escaping () -> Void) {
@@ -265,6 +276,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         ])
         NSApp.mainMenu = main
     }
+}
+
+/// ~/Library/Logs/ai-office-app.log: what the app did with notifications, for troubleshooting.
+func applog(_ line: String) {
+    let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/ai-office-app.log")
+    let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+    let data = (f.string(from: Date()) + " " + line + "\n").data(using: .utf8)!
+    if let h = try? FileHandle(forWritingTo: url) { h.seekToEndOfFile(); h.write(data); try? h.close() } else { try? data.write(to: url) }
 }
 
 let app = NSApplication.shared
